@@ -149,11 +149,8 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
-          internal_name: string | null
-          listen_for_hint: string | null
           name: string
           pillar: string
-          respondent_question: string | null
           scoring_framework_id: string
           sort_order: number
           weight_percent: number
@@ -162,11 +159,8 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
-          internal_name?: string | null
-          listen_for_hint?: string | null
           name: string
           pillar: string
-          respondent_question?: string | null
           scoring_framework_id: string
           sort_order?: number
           weight_percent?: number
@@ -175,11 +169,8 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
-          internal_name?: string | null
-          listen_for_hint?: string | null
           name?: string
           pillar?: string
-          respondent_question?: string | null
           scoring_framework_id?: string
           sort_order?: number
           weight_percent?: number
@@ -274,20 +265,13 @@ export type Database = {
         Row: {
           ai_processed_at: string | null
           ai_summary: Json | null
-          attachment_category:
-            | Database["public"]["Enums"]["attachment_category"]
-            | null
           document_type: Database["public"]["Enums"]["document_type"]
           engagement_id: string
           file_name: string
           file_size: number | null
           id: string
-          is_primary_response: boolean
-          label: string | null
           mime_type: string | null
-          page_count: number | null
           storage_path: string
-          substance_note: string | null
           uploaded_at: string
           uploaded_by: string | null
           vendor_id: string | null
@@ -295,20 +279,13 @@ export type Database = {
         Insert: {
           ai_processed_at?: string | null
           ai_summary?: Json | null
-          attachment_category?:
-            | Database["public"]["Enums"]["attachment_category"]
-            | null
           document_type?: Database["public"]["Enums"]["document_type"]
           engagement_id: string
           file_name: string
           file_size?: number | null
           id?: string
-          is_primary_response?: boolean
-          label?: string | null
           mime_type?: string | null
-          page_count?: number | null
           storage_path: string
-          substance_note?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
           vendor_id?: string | null
@@ -316,20 +293,13 @@ export type Database = {
         Update: {
           ai_processed_at?: string | null
           ai_summary?: Json | null
-          attachment_category?:
-            | Database["public"]["Enums"]["attachment_category"]
-            | null
           document_type?: Database["public"]["Enums"]["document_type"]
           engagement_id?: string
           file_name?: string
           file_size?: number | null
           id?: string
-          is_primary_response?: boolean
-          label?: string | null
           mime_type?: string | null
-          page_count?: number | null
           storage_path?: string
-          substance_note?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
           vendor_id?: string | null
@@ -358,52 +328,9 @@ export type Database = {
           },
         ]
       }
-      engagement_milestones: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          due_at: string
-          engagement_id: string
-          id: string
-          label: string
-          milestone_type: string
-          note: string | null
-          sort_order: number
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          due_at: string
-          engagement_id: string
-          id?: string
-          label: string
-          milestone_type: string
-          note?: string | null
-          sort_order?: number
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          due_at?: string
-          engagement_id?: string
-          id?: string
-          label?: string
-          milestone_type?: string
-          note?: string | null
-          sort_order?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "engagement_milestones_engagement_id_fkey"
-            columns: ["engagement_id"]
-            isOneToOne: false
-            referencedRelation: "engagements"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       engagements: {
         Row: {
+          athlete_profile: Json | null
           client_name: string | null
           created_at: string
           created_by: string | null
@@ -416,9 +343,9 @@ export type Database = {
           status: Database["public"]["Enums"]["engagement_status"]
           updated_at: string
           vendor_type: Database["public"]["Enums"]["vendor_type"]
-          athlete_profile: Json | null
         }
         Insert: {
+          athlete_profile?: Json | null
           client_name?: string | null
           created_at?: string
           created_by?: string | null
@@ -431,9 +358,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["engagement_status"]
           updated_at?: string
           vendor_type?: Database["public"]["Enums"]["vendor_type"]
-          athlete_profile?: Json | null
         }
         Update: {
+          athlete_profile?: Json | null
           client_name?: string | null
           created_at?: string
           created_by?: string | null
@@ -446,7 +373,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["engagement_status"]
           updated_at?: string
           vendor_type?: Database["public"]["Enums"]["vendor_type"]
-          athlete_profile?: Json | null
         }
         Relationships: [
           {
@@ -474,7 +400,6 @@ export type Database = {
       }
       meeting_transcripts: {
         Row: {
-          evaluation_result: Json | null
           id: string
           meeting_id: string
           processed_at: string | null
@@ -485,7 +410,6 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
-          evaluation_result?: Json | null
           id?: string
           meeting_id: string
           processed_at?: string | null
@@ -496,7 +420,6 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
-          evaluation_result?: Json | null
           id?: string
           meeting_id?: string
           processed_at?: string | null
@@ -666,7 +589,6 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
-          is_super_admin: boolean
           updated_at: string
         }
         Insert: {
@@ -675,7 +597,6 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
-          is_super_admin?: boolean
           updated_at?: string
         }
         Update: {
@@ -684,58 +605,9 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
-          is_super_admin?: boolean
           updated_at?: string
         }
         Relationships: []
-      }
-      questionnaire_items: {
-        Row: {
-          created_at: string
-          document_id: string | null
-          engagement_id: string
-          id: string
-          question_number: string | null
-          question_text: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          document_id?: string | null
-          engagement_id: string
-          id?: string
-          question_number?: string | null
-          question_text: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          document_id?: string | null
-          engagement_id?: string
-          id?: string
-          question_number?: string | null
-          question_text?: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "questionnaire_items_document_id_fkey"
-            columns: ["document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "questionnaire_items_engagement_id_fkey"
-            columns: ["engagement_id"]
-            isOneToOne: false
-            referencedRelation: "engagements"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       recommendations: {
         Row: {
@@ -937,8 +809,6 @@ export type Database = {
           priority_weights: Json | null
           role_category: Database["public"]["Enums"]["stakeholder_role"]
           role_title: string | null
-          scoring_submitted_at: string | null
-          final_scoring_submitted_at: string | null
           status: Database["public"]["Enums"]["stakeholder_status"]
           user_id: string | null
         }
@@ -954,8 +824,6 @@ export type Database = {
           priority_weights?: Json | null
           role_category?: Database["public"]["Enums"]["stakeholder_role"]
           role_title?: string | null
-          scoring_submitted_at?: string | null
-          final_scoring_submitted_at?: string | null
           status?: Database["public"]["Enums"]["stakeholder_status"]
           user_id?: string | null
         }
@@ -971,8 +839,6 @@ export type Database = {
           priority_weights?: Json | null
           role_category?: Database["public"]["Enums"]["stakeholder_role"]
           role_title?: string | null
-          scoring_submitted_at?: string | null
-          final_scoring_submitted_at?: string | null
           status?: Database["public"]["Enums"]["stakeholder_status"]
           user_id?: string | null
         }
@@ -988,6 +854,39 @@ export type Database = {
             foreignKeyName: "stakeholders_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      super_admins: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_admins_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "super_admins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1044,7 +943,7 @@ export type Database = {
             foreignKeyName: "vendors_engagement_id_fkey"
             columns: ["engagement_id"]
             isOneToOne: false
-            referencedRelation: "vendors"
+            referencedRelation: "engagements"
             referencedColumns: ["id"]
           },
         ]
@@ -1060,13 +959,6 @@ export type Database = {
     }
     Enums: {
       actor_type: "user" | "system" | "ai"
-      attachment_category:
-        | "engagement_specific_analysis"
-        | "direct_questionnaire_answer"
-        | "generic_product_brochure"
-        | "case_study_other_client"
-        | "firm_boilerplate"
-        | "other_supporting"
       cross_ref_status:
         | "aligned"
         | "contradicts_rfp"
@@ -1091,11 +983,6 @@ export type Database = {
         | "contract"
         | "supporting"
         | "other"
-        | "rfp_questionnaire"
-        | "data_file"
-        | "plan_document"
-        | "timeline"
-        | "background"
       engagement_status: "draft" | "active" | "completed" | "archived"
       flag_severity: "none" | "info" | "warning" | "critical"
       meeting_status: "scheduled" | "in_progress" | "complete" | "cancelled"
@@ -1141,6 +1028,7 @@ export type Database = {
         | "email_followup"
       vendor_type:
         | "benefits_broker"
+        | "college_recruitment"
         | "it"
         | "legal"
         | "agency"
@@ -1149,15 +1037,6 @@ export type Database = {
         | "saas"
         | "professional_services"
         | "other"
-        | "tpa"
-        | "pbm"
-        | "stop_loss"
-        | "payroll"
-        | "cobra_fsa_admin"
-        | "navigation_advocacy"
-        | "mental_health_eap"
-        | "captive_funding"
-        | "college_recruitment"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1282,54 +1161,10 @@ export type CompositeTypes<
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
-// ---------------------------------------------------------------------------
-// Convenience row aliases
-// ---------------------------------------------------------------------------
-
-export type VendorType = Database['public']['Enums']['vendor_type']
-export type OrgRole = Database['public']['Enums']['org_role']
-export type EngagementStatus = Database['public']['Enums']['engagement_status']
-export type DocumentType = Database['public']['Enums']['document_type']
-export type AttachmentCategory = Database['public']['Enums']['attachment_category']
-export type DeliverableStatus = Database['public']['Enums']['deliverable_status']
-export type DeliverableSource = Database['public']['Enums']['deliverable_source']
-export type RecommendationStatus = Database['public']['Enums']['recommendation_status']
-export type ScorePhase = Database['public']['Enums']['score_phase']
-export type StakeholderRole = Database['public']['Enums']['stakeholder_role']
-export type StakeholderStatus = Database['public']['Enums']['stakeholder_status']
-export type MeetingStatus = Database['public']['Enums']['meeting_status']
-export type TranscriptSource = Database['public']['Enums']['transcript_source']
-export type OwnershipType = Database['public']['Enums']['ownership_type']
-export type FlagSeverity = Database['public']['Enums']['flag_severity']
-export type CrossRefStatus = Database['public']['Enums']['cross_ref_status']
-
-export type VendorRow = Tables<'vendors'>
-export type DeliverableRow = Tables<'deliverables'>
-export type DocumentRow = Tables<'documents'>
-export type EngagementRow = Tables<'engagements'>
-export type MeetingRow = Tables<'meetings'>
-export type MeetingTranscriptRow = Tables<'meeting_transcripts'>
-export type CommitmentRow = Tables<'commitments'>
-export type ScoreRow = Tables<'scores'>
-export type CriterionRow = Tables<'criteria'>
-export type MilestoneRow = Tables<'engagement_milestones'>
-export type ProfileRow = Tables<'profiles'>
-export type RecommendationRow = Tables<'recommendations'>
-export type OrganizationRow = Tables<'organizations'>
-export type StakeholderRow = Tables<'stakeholders'>
-
 export const Constants = {
   public: {
     Enums: {
       actor_type: ["user", "system", "ai"],
-      attachment_category: [
-        "engagement_specific_analysis",
-        "direct_questionnaire_answer",
-        "generic_product_brochure",
-        "case_study_other_client",
-        "firm_boilerplate",
-        "other_supporting",
-      ],
       cross_ref_status: [
         "aligned",
         "contradicts_rfp",
@@ -1357,11 +1192,6 @@ export const Constants = {
         "contract",
         "supporting",
         "other",
-        "rfp_questionnaire",
-        "data_file",
-        "plan_document",
-        "timeline",
-        "background",
       ],
       engagement_status: ["draft", "active", "completed", "archived"],
       flag_severity: ["none", "info", "warning", "critical"],
@@ -1409,9 +1239,11 @@ export const Constants = {
         "manual_paste",
         "file_upload",
         "recording_transcription",
+        "email_followup",
       ],
       vendor_type: [
         "benefits_broker",
+        "college_recruitment",
         "it",
         "legal",
         "agency",
@@ -1420,14 +1252,6 @@ export const Constants = {
         "saas",
         "professional_services",
         "other",
-        "tpa",
-        "pbm",
-        "stop_loss",
-        "payroll",
-        "cobra_fsa_admin",
-        "navigation_advocacy",
-        "mental_health_eap",
-        "captive_funding",
       ],
     },
   },

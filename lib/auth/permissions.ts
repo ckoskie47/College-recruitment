@@ -9,11 +9,11 @@ export type OrgAccess = {
 export async function checkSuperAdmin(userId: string): Promise<boolean> {
   const svc = createServiceClient()
   const { data } = await svc
-    .from('profiles')
-    .select('is_super_admin')
-    .eq('id', userId)
-    .single()
-  return (data as { is_super_admin?: boolean } | null)?.is_super_admin ?? false
+    .from('super_admins')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return !!data
 }
 
 /**
@@ -26,7 +26,7 @@ export async function checkOrgAccess(
 ): Promise<OrgAccess> {
   const svc = createServiceClient()
 
-  const [memberResult, profileResult] = await Promise.all([
+  const [memberResult, superAdminResult] = await Promise.all([
     svc
       .from('organization_members')
       .select('role')
@@ -34,14 +34,13 @@ export async function checkOrgAccess(
       .eq('user_id', userId)
       .maybeSingle(),
     svc
-      .from('profiles')
-      .select('is_super_admin')
-      .eq('id', userId)
-      .single(),
+      .from('super_admins')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle(),
   ])
 
-  const isSuperAdmin =
-    (profileResult.data as { is_super_admin?: boolean } | null)?.is_super_admin ?? false
+  const isSuperAdmin = !!superAdminResult.data
   const role = (memberResult.data as { role?: string } | null)?.role
 
   return {
