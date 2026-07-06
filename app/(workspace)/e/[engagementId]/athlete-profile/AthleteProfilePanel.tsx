@@ -103,23 +103,23 @@ function RankInput({
   max?: number
 }) {
   return (
-    <div className="flex items-center gap-1">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(min, value - 1))}
-        style={{ background: 'var(--cream-deep)', border: '1px solid var(--line)', color: 'var(--ink)', fontFamily: 'var(--sans)', cursor: 'pointer', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        className="text-[11px] font-semibold"
-      >↑</button>
-      <span style={{ fontFamily: 'var(--mono)', color: 'var(--navy)', fontSize: 15, fontWeight: 600, minWidth: 20, textAlign: 'center' }}>
-        {value}
-      </span>
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(max, value + 1))}
-        style={{ background: 'var(--cream-deep)', border: '1px solid var(--line)', color: 'var(--ink)', fontFamily: 'var(--sans)', cursor: 'pointer', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        className="text-[11px] font-semibold"
-      >↓</button>
-    </div>
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      value={value}
+      onFocus={e => e.target.select()}
+      onChange={e => {
+        const n = parseInt(e.target.value, 10)
+        if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, n)))
+      }}
+      style={{
+        width: 48, textAlign: 'center', border: '1px solid var(--line)', background: 'var(--paper)',
+        color: 'var(--navy)', fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 15, outline: 'none',
+      }}
+      className="py-1.5"
+    />
   )
 }
 
