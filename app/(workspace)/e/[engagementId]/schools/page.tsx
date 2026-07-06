@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { SchoolsPanel } from './SchoolsPanel'
 import type { SchoolWithDetails } from './SchoolsPanel'
-import type { PipelineStage, PipelineStatus } from './actions'
+import type { PipelineStage, PipelineStatus } from './constants'
 import type { SchoolResearch } from '@/lib/ai/school-research-analyzer'
 import type { ExitInterview } from '@/lib/ai/visit-question-generator'
 

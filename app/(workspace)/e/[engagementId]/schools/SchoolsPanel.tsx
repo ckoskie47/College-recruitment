@@ -4,11 +4,13 @@ import { useState, useTransition } from 'react'
 import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
+} from './actions'
+import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
   type PipelineStage, type PipelineStatus, type CommType, type EnergyLevel,
   type RedFlagSeverity, type RedFlagStatus, type RedFlagSource, type QuestionStage,
   type QuestionSource, type PriorityFactor, type QuestionAskedInput,
-} from './actions'
+} from './constants'
 import { PRIORITY_FACTOR_LABELS } from '@/lib/ai/visit-question-generator'
 import type { SchoolResearch } from '@/lib/ai/school-research-analyzer'
 
