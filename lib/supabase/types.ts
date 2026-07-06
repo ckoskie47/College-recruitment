@@ -336,6 +336,7 @@ export type Database = {
           created_by: string | null
           decision_due_at: string | null
           description: string | null
+          exit_interview: Json | null
           id: string
           name: string
           organization_id: string
@@ -351,6 +352,7 @@ export type Database = {
           created_by?: string | null
           decision_due_at?: string | null
           description?: string | null
+          exit_interview?: Json | null
           id?: string
           name: string
           organization_id: string
@@ -366,6 +368,7 @@ export type Database = {
           created_by?: string | null
           decision_due_at?: string | null
           description?: string | null
+          exit_interview?: Json | null
           id?: string
           name?: string
           organization_id?: string
@@ -394,6 +397,48 @@ export type Database = {
             columns: ["scoring_framework_id"]
             isOneToOne: false
             referencedRelation: "scoring_frameworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      factor_scores: {
+        Row: {
+          created_at: string
+          engagement_id: string
+          factor: Database["public"]["Enums"]["priority_factor"]
+          id: string
+          score: number
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          engagement_id: string
+          factor: Database["public"]["Enums"]["priority_factor"]
+          id?: string
+          score: number
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          engagement_id?: string
+          factor?: Database["public"]["Enums"]["priority_factor"]
+          id?: string
+          score?: number
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factor_scores_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "factor_scores_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -448,49 +493,70 @@ export type Database = {
       }
       meetings: {
         Row: {
+          athlete_takeaway: string | null
           attendees: Json | null
+          comm_type: Database["public"]["Enums"]["comm_type"] | null
           created_at: string
           created_by: string | null
           duration_minutes: number | null
+          energy_level: Database["public"]["Enums"]["energy_level"] | null
           engagement_id: string
           id: string
+          key_points: string[] | null
           location: string | null
           notes: string | null
+          questions_asked: Json | null
           scheduled_at: string
           status: Database["public"]["Enums"]["meeting_status"]
           title: string | null
+          topics: string[] | null
           updated_at: string
           vendor_id: string
+          who_initiated: string | null
         }
         Insert: {
+          athlete_takeaway?: string | null
           attendees?: Json | null
+          comm_type?: Database["public"]["Enums"]["comm_type"] | null
           created_at?: string
           created_by?: string | null
           duration_minutes?: number | null
+          energy_level?: Database["public"]["Enums"]["energy_level"] | null
           engagement_id: string
           id?: string
+          key_points?: string[] | null
           location?: string | null
           notes?: string | null
+          questions_asked?: Json | null
           scheduled_at: string
           status?: Database["public"]["Enums"]["meeting_status"]
           title?: string | null
+          topics?: string[] | null
           updated_at?: string
           vendor_id: string
+          who_initiated?: string | null
         }
         Update: {
+          athlete_takeaway?: string | null
           attendees?: Json | null
+          comm_type?: Database["public"]["Enums"]["comm_type"] | null
           created_at?: string
           created_by?: string | null
           duration_minutes?: number | null
+          energy_level?: Database["public"]["Enums"]["energy_level"] | null
           engagement_id?: string
           id?: string
+          key_points?: string[] | null
           location?: string | null
           notes?: string | null
+          questions_asked?: Json | null
           scheduled_at?: string
           status?: Database["public"]["Enums"]["meeting_status"]
           title?: string | null
+          topics?: string[] | null
           updated_at?: string
           vendor_id?: string
+          who_initiated?: string | null
         }
         Relationships: [
           {
@@ -609,6 +675,66 @@ export type Database = {
         }
         Relationships: []
       }
+      questions: {
+        Row: {
+          coach_answer: string | null
+          created_at: string
+          engagement_id: string
+          factor: Database["public"]["Enums"]["priority_factor"] | null
+          id: string
+          question: string
+          red_flag_identified: boolean
+          sort_order: number
+          source: Database["public"]["Enums"]["question_source"]
+          stage: Database["public"]["Enums"]["question_stage"]
+          status: string
+          vendor_id: string | null
+        }
+        Insert: {
+          coach_answer?: string | null
+          created_at?: string
+          engagement_id: string
+          factor?: Database["public"]["Enums"]["priority_factor"] | null
+          id?: string
+          question: string
+          red_flag_identified?: boolean
+          sort_order?: number
+          source: Database["public"]["Enums"]["question_source"]
+          stage: Database["public"]["Enums"]["question_stage"]
+          status?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          coach_answer?: string | null
+          created_at?: string
+          engagement_id?: string
+          factor?: Database["public"]["Enums"]["priority_factor"] | null
+          id?: string
+          question?: string
+          red_flag_identified?: boolean
+          sort_order?: number
+          source?: Database["public"]["Enums"]["question_source"]
+          stage?: Database["public"]["Enums"]["question_stage"]
+          status?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questions_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recommendations: {
         Row: {
           approved_at: string | null
@@ -673,6 +799,107 @@ export type Database = {
             columns: ["recommended_vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      red_flags: {
+        Row: {
+          created_at: string
+          engagement_id: string
+          flag: string
+          id: string
+          matches_exit_concern: boolean
+          resolution_notes: string | null
+          severity: Database["public"]["Enums"]["red_flag_severity"]
+          source: Database["public"]["Enums"]["red_flag_source"]
+          status: Database["public"]["Enums"]["red_flag_status"]
+          vendor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          engagement_id: string
+          flag: string
+          id?: string
+          matches_exit_concern?: boolean
+          resolution_notes?: string | null
+          severity?: Database["public"]["Enums"]["red_flag_severity"]
+          source: Database["public"]["Enums"]["red_flag_source"]
+          status?: Database["public"]["Enums"]["red_flag_status"]
+          vendor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          engagement_id?: string
+          flag?: string
+          id?: string
+          matches_exit_concern?: boolean
+          resolution_notes?: string | null
+          severity?: Database["public"]["Enums"]["red_flag_severity"]
+          source?: Database["public"]["Enums"]["red_flag_source"]
+          status?: Database["public"]["Enums"]["red_flag_status"]
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "red_flags_engagement_id_fkey"
+            columns: ["engagement_id"]
+            isOneToOne: false
+            referencedRelation: "engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "red_flags_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schools: {
+        Row: {
+          coach_name: string | null
+          coach_tenure_years: number | null
+          conference: string | null
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          research_notes: string | null
+          research_structured: Json | null
+          updated_at: string
+        }
+        Insert: {
+          coach_name?: string | null
+          coach_tenure_years?: number | null
+          conference?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          research_notes?: string | null
+          research_structured?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          coach_name?: string | null
+          coach_tenure_years?: number | null
+          conference?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          research_notes?: string | null
+          research_structured?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schools_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -897,45 +1124,69 @@ export type Database = {
           contact_email: string | null
           contact_name: string | null
           created_at: string
+          decision_deadline: string | null
           engagement_id: string
           id: string
           metadata: Json | null
           name: string
+          nil_offer_amount: number | null
+          nil_offer_notes: string | null
           ownership_type: Database["public"]["Enums"]["ownership_type"]
           parent_company: string | null
+          passed_reason: string | null
+          pipeline_stage: Database["public"]["Enums"]["pipeline_stage"]
+          pipeline_status: Database["public"]["Enums"]["pipeline_status"]
           proposal_status: Database["public"]["Enums"]["proposal_status"]
           proposed_fee_amount: number | null
           proposed_fee_structure: string | null
+          pt_estimate: string | null
+          school_id: string | null
           updated_at: string
         }
         Insert: {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          decision_deadline?: string | null
           engagement_id: string
           id?: string
           metadata?: Json | null
           name: string
+          nil_offer_amount?: number | null
+          nil_offer_notes?: string | null
           ownership_type?: Database["public"]["Enums"]["ownership_type"]
           parent_company?: string | null
+          passed_reason?: string | null
+          pipeline_stage?: Database["public"]["Enums"]["pipeline_stage"]
+          pipeline_status?: Database["public"]["Enums"]["pipeline_status"]
           proposal_status?: Database["public"]["Enums"]["proposal_status"]
           proposed_fee_amount?: number | null
           proposed_fee_structure?: string | null
+          pt_estimate?: string | null
+          school_id?: string | null
           updated_at?: string
         }
         Update: {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          decision_deadline?: string | null
           engagement_id?: string
           id?: string
           metadata?: Json | null
           name?: string
+          nil_offer_amount?: number | null
+          nil_offer_notes?: string | null
           ownership_type?: Database["public"]["Enums"]["ownership_type"]
           parent_company?: string | null
+          passed_reason?: string | null
+          pipeline_stage?: Database["public"]["Enums"]["pipeline_stage"]
+          pipeline_status?: Database["public"]["Enums"]["pipeline_status"]
           proposal_status?: Database["public"]["Enums"]["proposal_status"]
           proposed_fee_amount?: number | null
           proposed_fee_structure?: string | null
+          pt_estimate?: string | null
+          school_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -944,6 +1195,13 @@ export type Database = {
             columns: ["engagement_id"]
             isOneToOne: false
             referencedRelation: "engagements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendors_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
             referencedColumns: ["id"]
           },
         ]
@@ -959,6 +1217,7 @@ export type Database = {
     }
     Enums: {
       actor_type: "user" | "system" | "ai"
+      comm_type: "text" | "call_1" | "call_2_plus" | "zoom" | "visit" | "other"
       cross_ref_status:
         | "aligned"
         | "contradicts_rfp"
@@ -983,6 +1242,12 @@ export type Database = {
         | "contract"
         | "supporting"
         | "other"
+      energy_level:
+        | "interested"
+        | "very_interested"
+        | "leaning"
+        | "neutral"
+        | "passed"
       engagement_status: "draft" | "active" | "completed" | "archived"
       flag_severity: "none" | "info" | "warning" | "critical"
       meeting_status: "scheduled" | "in_progress" | "complete" | "cancelled"
@@ -994,6 +1259,24 @@ export type Database = {
         | "employee_owned"
         | "nonprofit"
         | "unknown"
+      pipeline_stage:
+        | "initial_contact"
+        | "call_1"
+        | "call_2_plus"
+        | "zoom"
+        | "visit"
+        | "decision"
+      pipeline_status: "active" | "committed" | "passed"
+      priority_factor:
+        | "player_development"
+        | "coaching_staff_fit"
+        | "winning_program"
+        | "playing_style_fit"
+        | "finances_nil"
+        | "culture_fit"
+        | "campus_fit"
+        | "academics_major"
+        | "location"
       proposal_status:
         | "invited"
         | "submitted"
@@ -1001,12 +1284,27 @@ export type Database = {
         | "finalist"
         | "selected"
         | "declined"
+      question_source: "priority" | "exit_interview" | "research" | "custom"
+      question_stage:
+        | "intro_call"
+        | "deep_dive"
+        | "zoom"
+        | "visit"
+        | "research_homework"
       recommendation_status:
         | "draft"
         | "under_review"
         | "approved"
         | "rejected"
         | "superseded"
+      red_flag_severity: "low" | "medium" | "high"
+      red_flag_source: "research" | "exit_interview" | "athlete_logged"
+      red_flag_status:
+        | "new"
+        | "investigating"
+        | "monitored"
+        | "resolved"
+        | "accepted"
       score_phase: "rfp_initial" | "post_meeting" | "final"
       stakeholder_role:
         | "finance"
@@ -1165,6 +1463,7 @@ export const Constants = {
   public: {
     Enums: {
       actor_type: ["user", "system", "ai"],
+      comm_type: ["text", "call_1", "call_2_plus", "zoom", "visit", "other"],
       cross_ref_status: [
         "aligned",
         "contradicts_rfp",
@@ -1193,6 +1492,13 @@ export const Constants = {
         "supporting",
         "other",
       ],
+      energy_level: [
+        "interested",
+        "very_interested",
+        "leaning",
+        "neutral",
+        "passed",
+      ],
       engagement_status: ["draft", "active", "completed", "archived"],
       flag_severity: ["none", "info", "warning", "critical"],
       meeting_status: ["scheduled", "in_progress", "complete", "cancelled"],
@@ -1205,6 +1511,26 @@ export const Constants = {
         "nonprofit",
         "unknown",
       ],
+      pipeline_stage: [
+        "initial_contact",
+        "call_1",
+        "call_2_plus",
+        "zoom",
+        "visit",
+        "decision",
+      ],
+      pipeline_status: ["active", "committed", "passed"],
+      priority_factor: [
+        "player_development",
+        "coaching_staff_fit",
+        "winning_program",
+        "playing_style_fit",
+        "finances_nil",
+        "culture_fit",
+        "campus_fit",
+        "academics_major",
+        "location",
+      ],
       proposal_status: [
         "invited",
         "submitted",
@@ -1213,12 +1539,29 @@ export const Constants = {
         "selected",
         "declined",
       ],
+      question_source: ["priority", "exit_interview", "research", "custom"],
+      question_stage: [
+        "intro_call",
+        "deep_dive",
+        "zoom",
+        "visit",
+        "research_homework",
+      ],
       recommendation_status: [
         "draft",
         "under_review",
         "approved",
         "rejected",
         "superseded",
+      ],
+      red_flag_severity: ["low", "medium", "high"],
+      red_flag_source: ["research", "exit_interview", "athlete_logged"],
+      red_flag_status: [
+        "new",
+        "investigating",
+        "monitored",
+        "resolved",
+        "accepted",
       ],
       score_phase: ["rfp_initial", "post_meeting", "final"],
       stakeholder_role: [

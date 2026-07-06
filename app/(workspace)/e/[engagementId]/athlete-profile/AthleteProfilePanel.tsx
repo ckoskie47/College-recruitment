@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { saveAthleteProfile, generateVisitQuestionsAction, inviteAthlete, inviteAdvisor } from './actions'
-import type { AthleteProfile, PriorityFactor, VisitQuestion, VisitQuestionBooklet } from '@/lib/ai/visit-question-generator'
-import { PRIORITY_FACTOR_LABELS } from '@/lib/ai/visit-question-generator'
+import {
+  saveAthleteProfile, generateVisitQuestionsAction, inviteAthlete, inviteAdvisor,
+  saveExitInterview, generateQuestionBankAction,
+} from './actions'
+import type { AthleteProfile, PriorityFactor, VisitQuestion, VisitQuestionBooklet, ExitInterview, ExitReason } from '@/lib/ai/visit-question-generator'
+import { PRIORITY_FACTOR_LABELS, EXIT_REASON_LABELS, EXIT_FOLLOWUPS } from '@/lib/ai/visit-question-generator'
 
 const PRIORITY_FACTORS: PriorityFactor[] = [
   'player_development',
@@ -68,6 +71,10 @@ type DQKey = 'q1_portal_reason' | 'q2_goal_2027' | 'q3_adversity' | 'q4_playing_
 const DQ_KEYS: DQKey[] = ['q1_portal_reason', 'q2_goal_2027', 'q3_adversity', 'q4_playing_time', 'q5_success_definition']
 
 const PILLAR_ORDER = ['Athletic Program', 'Playing Time', 'Financial Package', 'Academic Fit', 'Campus & Life Fit']
+
+function defaultExitInterview(): ExitInterview {
+  return { reasons: [], details: {}, redFlagsToAvoid: '' }
+}
 
 function defaultProfile(): AthleteProfile {
   const priority_ranking = Object.fromEntries(
@@ -255,21 +262,112 @@ function InviteRow({
   )
 }
 
+function ExitInterviewSection({
+  exitInterview,
+  onChange,
+}: {
+  exitInterview: ExitInterview
+  onChange: (next: ExitInterview) => void
+}) {
+  function toggleReason(reason: ExitReason) {
+    const has = exitInterview.reasons.includes(reason)
+    const reasons = has ? exitInterview.reasons.filter(r => r !== reason) : [...exitInterview.reasons, reason]
+    const details = { ...exitInterview.details }
+    if (has) delete details[reason]
+    onChange({ ...exitInterview, reasons, details })
+  }
+
+  function setDetail(reason: ExitReason, key: string, value: string) {
+    onChange({
+      ...exitInterview,
+      details: { ...exitInterview.details, [reason]: { ...(exitInterview.details[reason] ?? {}), [key]: value } },
+    })
+  }
+
+  const inputStyle = {
+    border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)',
+    fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 14,
+  }
+
+  return (
+    <div className="mb-10">
+      <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold tracking-[0.08em] uppercase mb-1">
+        Part 3 — Exit Interview
+      </p>
+      <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mb-5">
+        Why are you leaving? This drives the questions that check whether a new school will repeat the same problems.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+        {(Object.keys(EXIT_REASON_LABELS) as ExitReason[]).map(reason => {
+          const checked = exitInterview.reasons.includes(reason)
+          const followups = EXIT_FOLLOWUPS[reason]
+          return (
+            <div key={reason} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '14px 20px' }}>
+              <label className="flex items-center gap-3" style={{ cursor: 'pointer' }}>
+                <input type="checkbox" checked={checked} onChange={() => toggleReason(reason)} />
+                <span style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: 13 }}>
+                  {EXIT_REASON_LABELS[reason]}
+                </span>
+              </label>
+              {checked && followups && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14, paddingLeft: 28 }}>
+                  {followups.map(f => (
+                    <div key={f.key}>
+                      <label style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="block text-[12px] mb-1.5">
+                        {f.prompt}
+                      </label>
+                      <input
+                        value={exitInterview.details[reason]?.[f.key] ?? ''}
+                        onChange={e => setDetail(reason, f.key, e.target.value)}
+                        style={inputStyle}
+                        className="px-3 py-2"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <label htmlFor="red-flags-to-avoid" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+        What red flags should you avoid in your next school?
+      </label>
+      <textarea
+        id="red-flags-to-avoid"
+        value={exitInterview.redFlagsToAvoid}
+        onChange={e => onChange({ ...exitInterview, redFlagsToAvoid: e.target.value })}
+        placeholder={'e.g. "Coach who doesn\'t develop position players", "Unclear PT path for transfers"'}
+        rows={3}
+        style={{ ...inputStyle, resize: 'vertical' }}
+        className="px-4 py-3"
+      />
+    </div>
+  )
+}
+
 export function AthleteProfilePanel({
   engagementId,
   athleteName,
   initialProfile,
+  initialExitInterview,
 }: {
   engagementId: string
   athleteName: string
   initialProfile: AthleteProfile | null
+  initialExitInterview: ExitInterview | null
 }) {
   const [profile, setProfile] = useState<AthleteProfile>(initialProfile ?? defaultProfile())
+  const [exitInterview, setExitInterview] = useState<ExitInterview>(initialExitInterview ?? defaultExitInterview())
   const [schoolName, setSchoolName] = useState('')
   const [booklet, setBooklet] = useState<VisitQuestionBooklet | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [savePending, startSave] = useTransition()
   const [genPending, startGen] = useTransition()
+  const [bankPending, startBank] = useTransition()
+  const [bankMessage, setBankMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   function setPriority(factor: PriorityFactor, val: number) {
     setProfile(p => ({ ...p, priority_ranking: { ...p.priority_ranking, [factor]: val } }))
@@ -282,10 +380,24 @@ export function AthleteProfilePanel({
   function handleSave() {
     setMessage(null)
     startSave(async () => {
-      const result = await saveAthleteProfile(engagementId, profile)
-      setMessage(result.success
-        ? { type: 'success', text: 'Profile saved.' }
-        : { type: 'error', text: result.error ?? 'Failed to save.' })
+      const [profileResult, exitResult] = await Promise.all([
+        saveAthleteProfile(engagementId, profile),
+        saveExitInterview(engagementId, exitInterview),
+      ])
+      const failed = !profileResult.success ? profileResult : !exitResult.success ? exitResult : null
+      setMessage(failed
+        ? { type: 'error', text: failed.error ?? 'Failed to save.' }
+        : { type: 'success', text: 'Profile saved.' })
+    })
+  }
+
+  function handleGenerateBank() {
+    setBankMessage(null)
+    startBank(async () => {
+      const result = await generateQuestionBankAction(engagementId, athleteName)
+      setBankMessage(result.success
+        ? { type: 'success', text: `Generated ${result.count} questions — find them on each school's page in School Tracker.` }
+        : { type: 'error', text: result.error ?? 'Failed to generate question bank.' })
     })
   }
 
@@ -423,8 +535,14 @@ export function AthleteProfilePanel({
         </div>
       </div>
 
+      <div style={{ height: 1, background: 'var(--line)', marginBottom: 36, position: 'relative' }}>
+        <div style={{ position: 'absolute', left: 0, top: -1, width: 48, height: 3, background: 'var(--gold)' }} />
+      </div>
+
+      <ExitInterviewSection exitInterview={exitInterview} onChange={setExitInterview} />
+
       {/* Save */}
-      <div className="flex items-center gap-3 mb-12">
+      <div className="flex items-center gap-3 mb-6">
         <button
           onClick={handleSave}
           disabled={savePending}
@@ -443,6 +561,26 @@ export function AthleteProfilePanel({
         )}
       </div>
 
+      {/* Generate question bank */}
+      <div className="flex items-center gap-3 mb-12">
+        <button
+          onClick={handleGenerateBank}
+          disabled={bankPending}
+          style={{
+            background: bankPending ? 'var(--slate)' : 'var(--gold)', color: 'var(--navy)',
+            fontFamily: 'var(--sans)', border: 'none', cursor: bankPending ? 'not-allowed' : 'pointer',
+          }}
+          className="px-6 py-2.5 text-[11px] font-semibold tracking-[0.08em] uppercase"
+        >
+          {bankPending ? 'Generating…' : 'Generate my question bank'}
+        </button>
+        {bankMessage && (
+          <p style={{ color: bankMessage.type === 'success' ? 'var(--green)' : 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[12px]">
+            {bankMessage.text}
+          </p>
+        )}
+      </div>
+
       {/* Question Generator */}
       <div style={{ height: 1, background: 'var(--line)', marginBottom: 32, position: 'relative' }}>
         <div style={{ position: 'absolute', left: 0, top: -1, width: 48, height: 3, background: 'var(--gold)' }} />
@@ -452,7 +590,7 @@ export function AthleteProfilePanel({
           Generate Visit Questions
         </p>
         <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mb-5">
-          Enter a school name and the AI will generate a tailored question guide for that visit based on Caleb's profile.
+          Enter a school name and the AI will generate a tailored question guide for that visit based on {athleteName}&apos;s profile.
         </p>
         <div className="flex items-center gap-3">
           <input

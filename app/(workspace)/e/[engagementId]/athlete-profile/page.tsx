@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { AthleteProfilePanel } from './AthleteProfilePanel'
-import type { AthleteProfile } from '@/lib/ai/visit-question-generator'
+import type { AthleteProfile, ExitInterview } from '@/lib/ai/visit-question-generator'
 
 export default async function AthleteProfilePage({
   params,
@@ -17,7 +17,7 @@ export default async function AthleteProfilePage({
   const svc = createServiceClient()
   const { data: eng } = await svc
     .from('engagements')
-    .select('name, client_name, athlete_profile')
+    .select('name, client_name, athlete_profile, exit_interview')
     .eq('id', engagementId)
     .single()
 
@@ -25,12 +25,14 @@ export default async function AthleteProfilePage({
 
   const athleteName = eng.client_name ?? 'Athlete'
   const existingProfile = eng.athlete_profile as AthleteProfile | null
+  const existingExitInterview = eng.exit_interview as ExitInterview | null
 
   return (
     <AthleteProfilePanel
       engagementId={engagementId}
       athleteName={athleteName}
       initialProfile={existingProfile}
+      initialExitInterview={existingExitInterview}
     />
   )
 }

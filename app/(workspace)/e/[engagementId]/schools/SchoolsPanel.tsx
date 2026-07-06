@@ -2,62 +2,146 @@
 
 import { useState, useTransition } from 'react'
 import {
-  addSchool, updateSchool, logInteraction,
-  SCHOOL_STATUS_LABELS, INTERACTION_TYPES,
-  type SchoolStatus, type InteractionType,
+  addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
+  logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
+  PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
+  type PipelineStage, type PipelineStatus, type CommType, type EnergyLevel,
+  type RedFlagSeverity, type RedFlagStatus, type RedFlagSource, type QuestionStage,
+  type QuestionSource, type PriorityFactor, type QuestionAskedInput,
 } from './actions'
+import { PRIORITY_FACTOR_LABELS } from '@/lib/ai/visit-question-generator'
+import type { SchoolResearch } from '@/lib/ai/school-research-analyzer'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type SchoolWithInteractions = {
+export type CommunicationEntry = {
   id: string
+  title: string
+  scheduled_at: string
+  duration_minutes: number | null
+  comm_type: CommType | null
+  topics: string[]
+  key_points: string[]
+  questions_asked: { question: string; answer: string; redFlagIdentified: boolean }[]
+  athlete_takeaway: string | null
+  energy_level: EnergyLevel | null
+  who_initiated: string | null
+  notes: string | null
+  attendees: string[] | null
+}
+
+export type RedFlagEntry = {
+  id: string
+  source: RedFlagSource
+  flag: string
+  severity: RedFlagSeverity
+  status: RedFlagStatus
+  resolution_notes: string | null
+  matches_exit_concern: boolean
+}
+
+export type QuestionEntry = {
+  id: string
+  stage: QuestionStage
+  source: QuestionSource
+  factor: PriorityFactor | null
+  question: string
+  status: string
+  coach_answer: string | null
+  red_flag_identified: boolean
+}
+
+export type SchoolWithDetails = {
+  id: string
+  school_id: string | null
   name: string
   contact_name: string | null
   contact_email: string | null
-  proposed_fee_amount: number | null
-  proposal_status: SchoolStatus
+  pipeline_stage: PipelineStage
+  pipeline_status: PipelineStatus
+  nil_offer_amount: number | null
+  nil_offer_notes: string | null
+  pt_estimate: string | null
+  decision_deadline: string | null
+  passed_reason: string | null
   metadata: { next_step?: string } | null
-  interactions: {
-    id: string
-    title: string
-    scheduled_at: string
-    location: string | null
-    notes: string | null
-    attendees: string[] | null
-  }[]
+  communications: CommunicationEntry[]
+  redFlags: RedFlagEntry[]
+  historicalFlags: { flag: string; severity: string }[]
+  questions: QuestionEntry[]
+  researchNotes: string | null
+  researchStructured: SchoolResearch | null
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const STATUS_COLORS: Record<SchoolStatus, { bg: string; text: string; border: string }> = {
-  invited:    { bg: '#EBE5D5', text: '#3D5A75', border: '#D9D2C2' },
-  submitted:  { bg: '#FBEFCF', text: '#B47E11', border: '#F0D98B' },
-  finalist:   { bg: '#FBF3E2', text: '#B89653', border: '#D4B879' },
-  selected:   { bg: '#DFE9DF', text: '#2F5D3A', border: '#B8D4B8' },
-  eliminated: { bg: '#F4D9D7', text: '#9E2A2B', border: '#E8B4B2' },
-  declined:   { bg: '#F4D9D7', text: '#9E2A2B', border: '#E8B4B2' },
-}
-
-function StatusBadge({ status }: { status: SchoolStatus }) {
-  const c = STATUS_COLORS[status]
-  return (
-    <span style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}`, fontFamily: 'var(--sans)', display: 'inline-block' }}
-      className="px-3 py-1 text-[11px] font-semibold tracking-[0.06em] uppercase rounded-sm">
-      {SCHOOL_STATUS_LABELS[status]}
-    </span>
-  )
-}
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function interactionLabel(type: string | null) {
-  return INTERACTION_TYPES.find(t => t.value === type)?.label ?? type ?? 'Interaction'
+const SEVERITY_COLORS: Record<RedFlagSeverity, { bg: string; text: string; border: string }> = {
+  low:    { bg: '#EBE5D5', text: '#6B7F95', border: '#D9D2C2' },
+  medium: { bg: '#FBEFCF', text: '#B47E11', border: '#F0D98B' },
+  high:   { bg: '#F4D9D7', text: '#9E2A2B', border: '#E8B4B2' },
+}
+
+function SeverityBadge({ severity }: { severity: RedFlagSeverity }) {
+  const c = SEVERITY_COLORS[severity]
+  return (
+    <span style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}`, fontFamily: 'var(--sans)' }}
+      className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-sm">
+      {severity}
+    </span>
+  )
+}
+
+function StatusPill({ status }: { status: PipelineStatus }) {
+  if (status === 'active') return null
+  const c = status === 'committed' ? { bg: '#DFE9DF', text: '#2F5D3A', border: '#B8D4B8' } : { bg: '#F4D9D7', text: '#9E2A2B', border: '#E8B4B2' }
+  return (
+    <span style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}`, fontFamily: 'var(--sans)' }}
+      className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide rounded-sm">
+      {status}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Stage progress indicator
+// ---------------------------------------------------------------------------
+
+function StageProgress({ stage, status, onChange }: { stage: PipelineStage; status: PipelineStatus; onChange: (s: PipelineStage) => void }) {
+  const currentIndex = PIPELINE_STAGES.findIndex(s => s.value === stage)
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {PIPELINE_STAGES.map((s, i) => {
+        const done = i < currentIndex
+        const current = i === currentIndex
+        return (
+          <button
+            key={s.value}
+            type="button"
+            disabled={status !== 'active'}
+            onClick={() => onChange(s.value)}
+            title={`Mark as ${s.label}`}
+            style={{
+              background: current ? 'var(--navy)' : done ? 'var(--green)' : 'var(--white)',
+              color: current || done ? 'var(--cream)' : 'var(--slate-soft)',
+              border: `1px solid ${current ? 'var(--navy)' : done ? 'var(--green)' : 'var(--line)'}`,
+              fontFamily: 'var(--sans)', cursor: status === 'active' ? 'pointer' : 'default',
+            }}
+            className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide rounded-sm"
+          >
+            {done || current ? '✓ ' : ''}{s.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -68,8 +152,6 @@ function AddSchoolForm({ engagementId, onAdded }: { engagementId: string; onAdde
   const [name, setName] = useState('')
   const [coach, setCoach] = useState('')
   const [contact, setContact] = useState('')
-  const [pct, setPct] = useState('')
-  const [status, setStatus] = useState<SchoolStatus>('invited')
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
@@ -77,11 +159,13 @@ function AddSchoolForm({ engagementId, onAdded }: { engagementId: string; onAdde
     if (!name.trim()) { setError('Enter a school name.'); return }
     setError(null)
     start(async () => {
-      const r = await addSchool(engagementId, name, coach, contact, pct, status)
-      if (r.success) { setName(''); setCoach(''); setContact(''); setPct(''); onAdded() }
+      const r = await addSchool(engagementId, name, coach, contact)
+      if (r.success) { setName(''); setCoach(''); setContact(''); onAdded() }
       else setError(r.error ?? 'Failed.')
     })
   }
+
+  const inputStyle = { border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 16 }
 
   return (
     <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderStyle: 'dashed', padding: '20px 20px' }} className="mb-4">
@@ -89,45 +173,10 @@ function AddSchoolForm({ engagementId, onAdded }: { engagementId: string; onAdde
         Add school
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <input
-          value={name} onChange={e => setName(e.target.value)}
-          placeholder="School name"
-          style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 16 }}
-          className="px-4 py-3"
-        />
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="School name" style={{ ...inputStyle, width: '100%' }} className="px-4 py-3" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <input
-            value={coach} onChange={e => setCoach(e.target.value)}
-            placeholder="Position coach"
-            style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 16 }}
-            className="px-4 py-3"
-          />
-          <input
-            value={contact} onChange={e => setContact(e.target.value)}
-            placeholder="Phone / email"
-            style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 16 }}
-            className="px-4 py-3"
-          />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div className="relative">
-            <input
-              value={pct} onChange={e => setPct(e.target.value)}
-              placeholder="Scholarship %"
-              type="number" min="0" max="100"
-              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 16 }}
-              className="px-4 py-3"
-            />
-          </div>
-          <select
-            value={status} onChange={e => setStatus(e.target.value as SchoolStatus)}
-            style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 16 }}
-            className="px-4 py-3"
-          >
-            {(Object.keys(SCHOOL_STATUS_LABELS) as SchoolStatus[]).map(s => (
-              <option key={s} value={s}>{SCHOOL_STATUS_LABELS[s]}</option>
-            ))}
-          </select>
+          <input value={coach} onChange={e => setCoach(e.target.value)} placeholder="Coach name" style={inputStyle} className="px-4 py-3" />
+          <input value={contact} onChange={e => setContact(e.target.value)} placeholder="Phone / email" style={inputStyle} className="px-4 py-3" />
         </div>
         {error && <p style={{ color: 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[13px]">{error}</p>}
         <button
@@ -148,26 +197,47 @@ function AddSchoolForm({ engagementId, onAdded }: { engagementId: string; onAdde
 
 function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: string; vendorId: string; onDone: () => void }) {
   const today = new Date().toISOString().slice(0, 10)
-  const [type, setType] = useState<InteractionType>('phone_call')
+  const [commType, setCommType] = useState<CommType>('call_1')
   const [date, setDate] = useState(today)
-  const [summary, setSummary] = useState('')
+  const [duration, setDuration] = useState('')
+  const [whoInitiated, setWhoInitiated] = useState('')
+  const [topics, setTopics] = useState('')
+  const [keyPoints, setKeyPoints] = useState('')
+  const [questionsAsked, setQuestionsAsked] = useState<QuestionAskedInput[]>([])
+  const [athleteTakeaway, setAthleteTakeaway] = useState('')
+  const [energyLevel, setEnergyLevel] = useState<EnergyLevel | ''>('')
   const [notes, setNotes] = useState('')
   const [participants, setParticipants] = useState<string[]>(['Caleb'])
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
   const PARTICIPANT_OPTIONS = ['Caleb', 'Dad', 'Mom', 'Advisor', 'Head Coach', 'Position Coach']
+  const inputStyle = { border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 16 }
 
   function toggleParticipant(p: string) {
     setParticipants(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])
   }
 
+  function addQuestionRow() {
+    setQuestionsAsked(prev => [...prev, { question: '', answer: '', redFlagIdentified: false }])
+  }
+  function updateQuestionRow(i: number, patch: Partial<QuestionAskedInput>) {
+    setQuestionsAsked(prev => prev.map((q, idx) => idx === i ? { ...q, ...patch } : q))
+  }
+  function removeQuestionRow(i: number) {
+    setQuestionsAsked(prev => prev.filter((_, idx) => idx !== i))
+  }
+
   function handle() {
-    if (!summary.trim()) { setError('Add a brief summary.'); return }
     setError(null)
     start(async () => {
-      const r = await logInteraction(engagementId, vendorId, type, date, summary, notes, participants)
-      if (r.success) { setSummary(''); setNotes(''); onDone() }
+      const r = await logInteraction(engagementId, vendorId, {
+        commType, date, durationMinutes: duration, whoInitiated,
+        topics: topics.split('\n').map(t => t.trim()).filter(Boolean),
+        keyPoints: keyPoints.split('\n').map(t => t.trim()).filter(Boolean),
+        questionsAsked, athleteTakeaway, energyLevel, notes, participants,
+      })
+      if (r.success) onDone()
       else setError(r.error ?? 'Failed.')
     })
   }
@@ -175,45 +245,74 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
   return (
     <div style={{ background: 'var(--cream)', border: '1px solid var(--line)', padding: '16px 16px', marginTop: 12 }}>
       <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 700 }} className="text-[12px] uppercase tracking-widest mb-3">
-        Log interaction
+        Log communication
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <select
-            value={type} onChange={e => setType(e.target.value as InteractionType)}
-            style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 16 }}
-            className="px-3 py-3"
-          >
-            {INTERACTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          <select value={commType} onChange={e => setCommType(e.target.value as CommType)} style={inputStyle} className="px-3 py-3">
+            {COMM_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
-          <input
-            type="date" value={date} onChange={e => setDate(e.target.value)}
-            style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 16 }}
-            className="px-3 py-3"
-          />
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} className="px-3 py-3" />
         </div>
-        <input
-          value={summary} onChange={e => setSummary(e.target.value)}
-          placeholder="Brief summary — e.g. 'Coach said 1 spot left at DH'"
-          style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 16 }}
-          className="px-4 py-3"
-        />
-        <textarea
-          value={notes} onChange={e => setNotes(e.target.value)}
-          placeholder="Full notes — what was said, what to follow up on…"
-          rows={4}
-          style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', resize: 'vertical', fontSize: 16 }}
-          className="px-4 py-3"
-        />
-        {/* Participants */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <input type="number" min="0" value={duration} onChange={e => setDuration(e.target.value)} placeholder="Duration (min)" style={inputStyle} className="px-3 py-3" />
+          <input value={whoInitiated} onChange={e => setWhoInitiated(e.target.value)} placeholder="Who called (name/role)" style={inputStyle} className="px-3 py-3" />
+        </div>
+
+        <textarea value={topics} onChange={e => setTopics(e.target.value)} placeholder={'Topics discussed (one per line)'} rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
+        <textarea value={keyPoints} onChange={e => setKeyPoints(e.target.value)} placeholder={'Key points (one per line) — e.g. "You\'d start day 1 if you earn it"'} rows={3} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
+
+        {/* Questions asked */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+              Questions asked
+            </p>
+            <button type="button" onClick={addQuestionRow} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+              + Add
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {questionsAsked.map((q, i) => (
+              <div key={i} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '10px 12px' }}>
+                <input
+                  value={q.question} onChange={e => updateQuestionRow(i, { question: e.target.value })}
+                  placeholder="Question asked" style={{ ...inputStyle, marginBottom: 6 }} className="px-3 py-2 text-[13px]"
+                />
+                <input
+                  value={q.answer} onChange={e => updateQuestionRow(i, { answer: e.target.value })}
+                  placeholder="Their answer" style={{ ...inputStyle, marginBottom: 6 }} className="px-3 py-2 text-[13px]"
+                />
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2" style={{ fontFamily: 'var(--sans)', fontSize: 12, color: 'var(--ink-soft)' }}>
+                    <input type="checkbox" checked={q.redFlagIdentified} onChange={e => updateQuestionRow(i, { redFlagIdentified: e.target.checked })} />
+                    Red flag in this answer
+                  </label>
+                  <button type="button" onClick={() => removeQuestionRow(i)} style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <textarea value={athleteTakeaway} onChange={e => setAthleteTakeaway(e.target.value)} placeholder="Your takeaway from this call" rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
+
+        <select value={energyLevel} onChange={e => setEnergyLevel(e.target.value as EnergyLevel)} style={inputStyle} className="px-3 py-3">
+          <option value="">Energy level after this call…</option>
+          {ENERGY_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+        </select>
+
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any other notes" rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
+
         <div>
           <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-2">
             Who was on the call
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {PARTICIPANT_OPTIONS.map(p => (
-              <button
-                key={p} type="button" onClick={() => toggleParticipant(p)}
+              <button key={p} type="button" onClick={() => toggleParticipant(p)}
                 style={{
                   border: `1px solid ${participants.includes(p) ? 'var(--navy)' : 'var(--line)'}`,
                   background: participants.includes(p) ? 'var(--navy)' : 'var(--paper)',
@@ -227,20 +326,16 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
             ))}
           </div>
         </div>
+
         {error && <p style={{ color: 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[13px]">{error}</p>}
         <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={handle} disabled={pending}
+          <button onClick={handle} disabled={pending}
             style={{ flex: 1, background: pending ? 'var(--slate)' : 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: pending ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700 }}
             className="py-4"
           >
             {pending ? 'Saving…' : 'Save'}
           </button>
-          <button
-            onClick={onDone}
-            style={{ background: 'transparent', color: 'var(--slate-soft)', fontFamily: 'var(--sans)', border: '1px solid var(--line)', cursor: 'pointer', fontSize: 13 }}
-            className="px-5 py-4"
-          >
+          <button onClick={onDone} style={{ background: 'transparent', color: 'var(--slate-soft)', fontFamily: 'var(--sans)', border: '1px solid var(--line)', cursor: 'pointer', fontSize: 13 }} className="px-5 py-4">
             Cancel
           </button>
         </div>
@@ -250,138 +345,232 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
 }
 
 // ---------------------------------------------------------------------------
-// School Card
+// Communication history entry
 // ---------------------------------------------------------------------------
 
-function SchoolCard({ school, engagementId }: { school: SchoolWithInteractions; engagementId: string }) {
+function CommunicationEntryView({ entry }: { entry: CommunicationEntry }) {
   const [expanded, setExpanded] = useState(false)
-  const [logging, setLogging] = useState(false)
-  const [editingStatus, setEditingStatus] = useState(false)
-  const [nextStep, setNextStep] = useState(school.metadata?.next_step ?? '')
-  const [savingNext, startSavingNext] = useTransition()
-  const [statusPending, startStatus] = useTransition()
+  const hasDetail = entry.topics.length > 0 || entry.key_points.length > 0 || entry.questions_asked.length > 0 || entry.athlete_takeaway || entry.notes
 
-  const lastInteraction = school.interactions[0]
+  return (
+    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '12px 16px', borderRadius: 3 }}>
+      <div className="flex items-start justify-between gap-2">
+        <div style={{ flex: 1 }}>
+          <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontWeight: 600 }} className="text-[14px]">
+            {entry.title}{entry.duration_minutes ? ` · ${entry.duration_minutes} min` : ''}
+          </p>
+          <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mt-0.5">
+            {formatDate(entry.scheduled_at)}
+            {entry.who_initiated && <> · {entry.who_initiated}</>}
+            {entry.attendees && entry.attendees.length > 0 && <> · {entry.attendees.join(', ')}</>}
+            {entry.energy_level && <> · {ENERGY_LEVELS.find(l => l.value === entry.energy_level)?.label}</>}
+          </p>
+        </div>
+        {hasDetail && (
+          <button onClick={() => setExpanded(v => !v)} style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {expanded ? 'Hide' : 'Details'}
+          </button>
+        )}
+      </div>
+      {expanded && (
+        <div style={{ background: 'var(--cream)', borderRadius: 3, padding: '12px 14px', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {entry.topics.length > 0 && (
+            <div>
+              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Topics</p>
+              <ul style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px] list-disc pl-5">
+                {entry.topics.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </div>
+          )}
+          {entry.key_points.length > 0 && (
+            <div>
+              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Key points</p>
+              <ul style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px] list-disc pl-5">
+                {entry.key_points.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </div>
+          )}
+          {entry.questions_asked.length > 0 && (
+            <div>
+              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Questions asked</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {entry.questions_asked.map((q, i) => (
+                  <div key={i} style={{ fontFamily: 'var(--sans)' }} className="text-[13px]">
+                    <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Q: {q.question}</span>
+                    {q.answer && <><br /><span style={{ color: 'var(--ink-soft)' }}>A: {q.answer}</span></>}
+                    {q.redFlagIdentified && <span style={{ color: 'var(--red)' }}> 🚩 red flag</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {entry.athlete_takeaway && (
+            <div>
+              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Takeaway</p>
+              <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px]">{entry.athlete_takeaway}</p>
+            </div>
+          )}
+          {entry.notes && (
+            <div>
+              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Notes</p>
+              <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)', whiteSpace: 'pre-wrap' }} className="text-[13px]">{entry.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
-  function handleStatusChange(s: SchoolStatus) {
-    startStatus(async () => {
-      await updateSchool(school.id, engagementId, { status: s })
-      setEditingStatus(false)
+// ---------------------------------------------------------------------------
+// Red flags section
+// ---------------------------------------------------------------------------
+
+function RedFlagsSection({ engagementId, vendorId, flags, historicalFlags }: {
+  engagementId: string; vendorId: string; flags: RedFlagEntry[]; historicalFlags: { flag: string; severity: string }[]
+}) {
+  const [showAdd, setShowAdd] = useState(false)
+  const [flagText, setFlagText] = useState('')
+  const [severity, setSeverity] = useState<RedFlagSeverity>('medium')
+  const [pending, start] = useTransition()
+  const [, startStatus] = useTransition()
+
+  function handleAdd() {
+    start(async () => {
+      const r = await addRedFlag(engagementId, vendorId, flagText, severity)
+      if (r.success) { setFlagText(''); setShowAdd(false) }
     })
   }
 
-  function handleNextStep() {
-    startSavingNext(async () => {
-      await updateSchool(school.id, engagementId, { nextStep })
+  function handleStatus(id: string, status: RedFlagStatus) {
+    startStatus(async () => { await updateRedFlagStatus(id, engagementId, status) })
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+          Red flags {flags.length > 0 && `(${flags.length})`}
+        </p>
+        <button type="button" onClick={() => setShowAdd(v => !v)} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+          {showAdd ? 'Cancel' : '+ Log a flag'}
+        </button>
+      </div>
+
+      {historicalFlags.length > 0 && (
+        <div style={{ background: '#FBEFCF', border: '1px solid #F0D98B', padding: '10px 14px', marginBottom: 8 }}>
+          <p style={{ color: '#8A6416', fontFamily: 'var(--sans)', fontWeight: 700 }} className="text-[12px] mb-1">
+            ⚠ Seen before — flagged at this school in a past search
+          </p>
+          {historicalFlags.map((f, i) => (
+            <p key={i} style={{ color: '#8A6416', fontFamily: 'var(--sans)' }} className="text-[12px]">
+              · {f.flag}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {showAdd && (
+        <div style={{ background: 'var(--cream)', border: '1px solid var(--line)', padding: '12px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input value={flagText} onChange={e => setFlagText(e.target.value)} placeholder="What did you notice?" style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 14 }} className="px-3 py-2" />
+          <div className="flex items-center gap-2">
+            <select value={severity} onChange={e => setSeverity(e.target.value as RedFlagSeverity)} style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', fontSize: 14 }} className="px-2 py-2">
+              {RED_FLAG_SEVERITIES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button onClick={handleAdd} disabled={pending} style={{ background: 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700 }} className="px-4 py-2">
+              {pending ? 'Saving…' : 'Save flag'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {flags.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {flags.map(f => (
+            <div key={f.id} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '10px 12px' }} className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <SeverityBadge severity={f.severity} />
+                  <span style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[10px] uppercase tracking-wide">{f.source.replace('_', ' ')}</span>
+                </div>
+                <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px]">{f.flag}</p>
+              </div>
+              <select
+                defaultValue={f.status}
+                onChange={e => handleStatus(f.id, e.target.value as RedFlagStatus)}
+                style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', fontSize: 11 }}
+                className="px-2 py-1"
+              >
+                {(['new', 'investigating', 'monitored', 'resolved', 'accepted'] as RedFlagStatus[]).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Research section
+// ---------------------------------------------------------------------------
+
+function ResearchSection({ engagementId, vendorId, schoolId, notes, structured }: {
+  engagementId: string; vendorId: string; schoolId: string | null
+  notes: string | null; structured: SchoolResearch | null
+}) {
+  const [rawNotes, setRawNotes] = useState(notes ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const [pending, start] = useTransition()
+
+  function handleAnalyze() {
+    if (!schoolId) return
+    setError(null)
+    start(async () => {
+      const r = await saveSchoolResearch(engagementId, vendorId, schoolId, rawNotes)
+      if (!r.success) setError(r.error ?? 'Failed to analyze.')
     })
   }
 
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden' }}>
-      {/* Card header — always visible */}
-      <div style={{ padding: '16px 20px' }}>
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h3 style={{ fontFamily: 'var(--display)', color: 'var(--navy)', lineHeight: 1.2 }} className="text-[20px] font-medium mb-1 truncate">
-              {school.name}
-            </h3>
-            {school.contact_name && (
-              <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[13px]">
-                {school.contact_name}
-                {school.contact_email && <span style={{ color: 'var(--slate-soft)' }}> · {school.contact_email}</span>}
+    <div className="mb-4">
+      <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-2">
+        Research
+      </p>
+      <textarea
+        value={rawNotes} onChange={e => setRawNotes(e.target.value)}
+        placeholder="Paste articles, roster pages, past notes about the coach/program — AI will structure it and flag red flags."
+        rows={3}
+        style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 14, resize: 'vertical' }}
+        className="px-3 py-2 mb-2"
+      />
+      {error && <p style={{ color: 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[12px] mb-2">{error}</p>}
+      <button onClick={handleAnalyze} disabled={pending} style={{ background: pending ? 'var(--slate)' : 'var(--gold)', color: 'var(--navy)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} className="px-4 py-2 mb-3">
+        {pending ? 'Analyzing…' : 'Analyze research'}
+      </button>
+
+      {structured && (
+        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {structured.headCoach?.name && (
+            <div>
+              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px]">
+                {structured.headCoach.name}{structured.headCoach.yearsAtSchool != null && ` · year ${structured.headCoach.yearsAtSchool}`}
               </p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            {editingStatus ? (
-              <select
-                autoFocus
-                defaultValue={school.proposal_status}
-                onChange={e => handleStatusChange(e.target.value as SchoolStatus)}
-                onBlur={() => setEditingStatus(false)}
-                style={{ border: '1px solid var(--navy)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', fontSize: 14 }}
-                className="px-2 py-1"
-              >
-                {(Object.keys(SCHOOL_STATUS_LABELS) as SchoolStatus[]).map(s => (
-                  <option key={s} value={s}>{SCHOOL_STATUS_LABELS[s]}</option>
-                ))}
-              </select>
-            ) : (
-              <button onClick={() => setEditingStatus(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                <StatusBadge status={school.proposal_status} />
-              </button>
-            )}
-            {school.proposed_fee_amount != null && (
-              <span style={{ fontFamily: 'var(--mono)', color: 'var(--navy)', fontWeight: 700 }} className="text-[14px]">
-                {school.proposed_fee_amount}%
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Next step */}
-        <div className="flex items-center gap-2 mt-3">
-          <input
-            value={nextStep}
-            onChange={e => setNextStep(e.target.value)}
-            onBlur={handleNextStep}
-            onKeyDown={e => e.key === 'Enter' && handleNextStep()}
-            placeholder="Next step…"
-            style={{ flex: 1, border: 'none', borderBottom: '1px solid var(--line)', background: 'transparent', color: 'var(--ink-soft)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 14 }}
-            className="py-1"
-          />
-          {savingNext && <span style={{ color: 'var(--slate-soft)', fontSize: 11, fontFamily: 'var(--sans)' }}>saving…</span>}
-        </div>
-
-        {/* Last contact + expand */}
-        <div className="flex items-center justify-between mt-3">
-          <span style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">
-            {lastInteraction
-              ? `Last: ${interactionLabel(lastInteraction.location)} on ${formatDate(lastInteraction.scheduled_at)}`
-              : 'No interactions yet'
-            }
-            {school.interactions.length > 0 && ` · ${school.interactions.length} total`}
-          </span>
-          <button
-            onClick={() => setExpanded(v => !v)}
-            style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
-            className="py-1 pl-4"
-          >
-            {expanded ? 'Less ↑' : 'Details ↓'}
-          </button>
-        </div>
-      </div>
-
-      {/* Expanded section */}
-      {expanded && (
-        <div style={{ borderTop: '1px solid var(--line)', padding: '16px 20px', background: 'var(--paper)' }}>
-          {/* Log interaction button */}
-          {!logging && (
-            <button
-              onClick={() => setLogging(true)}
-              style={{ width: '100%', background: 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' }}
-              className="py-4 mb-4"
-            >
-              + Log interaction
-            </button>
+              {structured.headCoach.background && <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">{structured.headCoach.background}</p>}
+              {structured.headCoach.philosophy && <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">{structured.headCoach.philosophy}</p>}
+            </div>
           )}
-
-          {logging && (
-            <LogInteractionForm
-              engagementId={engagementId}
-              vendorId={school.id}
-              onDone={() => setLogging(false)}
-            />
+          {structured.program?.summary && <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[12px]">{structured.program.summary}</p>}
+          {structured.transferPortalHistory && (structured.transferPortalHistory.transfersIn != null || structured.transferPortalHistory.transfersOut != null) && (
+            <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[12px]">
+              Transfers: {structured.transferPortalHistory.transfersIn ?? '?'} in / {structured.transferPortalHistory.transfersOut ?? '?'} out
+              {structured.transferPortalHistory.reasonsOut && ` — ${structured.transferPortalHistory.reasonsOut}`}
+            </p>
           )}
-
-          {/* Interaction history */}
-          {school.interactions.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: logging ? 16 : 0 }}>
-              <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
-                Interaction history
-              </p>
-              {school.interactions.map(interaction => (
-                <InteractionEntry key={interaction.id} interaction={interaction} />
+          {structured.positives.length > 0 && (
+            <div>
+              {structured.positives.map((p, i) => (
+                <p key={i} style={{ color: 'var(--green)', fontFamily: 'var(--sans)' }} className="text-[12px]">✓ {p.indicator}</p>
               ))}
             </div>
           )}
@@ -391,40 +580,293 @@ function SchoolCard({ school, engagementId }: { school: SchoolWithInteractions; 
   )
 }
 
-function InteractionEntry({ interaction }: {
-  interaction: SchoolWithInteractions['interactions'][number]
-}) {
-  const [showNotes, setShowNotes] = useState(false)
-  const hasNotes = Boolean(interaction.notes?.trim())
+// ---------------------------------------------------------------------------
+// Suggested questions section
+// ---------------------------------------------------------------------------
+
+function QuestionsSection({ engagementId, questions }: { engagementId: string; questions: QuestionEntry[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const [stageFilter, setStageFilter] = useState<QuestionStage | 'all'>('all')
+  const [, start] = useTransition()
+  const [answerDraft, setAnswerDraft] = useState<Record<string, string>>({})
+
+  if (questions.length === 0) return null
+
+  const filtered = stageFilter === 'all' ? questions : questions.filter(q => q.stage === stageFilter)
+  const pendingCount = questions.filter(q => q.status === 'pending').length
+
+  function handleAsk(id: string) {
+    start(async () => { await markQuestionAsked(id, engagementId, answerDraft[id] ?? '') })
+  }
+
+  const stages = [...new Set(questions.map(q => q.stage))]
 
   return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '12px 16px', borderRadius: 3 }}>
-      <div className="flex items-start justify-between gap-2">
-        <div style={{ flex: 1 }}>
-          <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontWeight: 600 }} className="text-[14px]">
-            {interaction.title}
-          </p>
-          <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mt-0.5">
-            {formatDate(interaction.scheduled_at)}
-            {interaction.attendees && interaction.attendees.length > 0 && (
-              <> · {interaction.attendees.join(', ')}</>
-            )}
-          </p>
+    <div className="mb-4">
+      <button onClick={() => setExpanded(v => !v)} className="flex items-center justify-between w-full" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+        <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+          Suggested questions ({pendingCount} pending)
+        </p>
+        <span style={{ color: 'var(--navy)', fontFamily: 'var(--sans)' }} className="text-[12px] font-semibold">{expanded ? 'Hide ↑' : 'Show ↓'}</span>
+      </button>
+      {expanded && (
+        <div className="mt-2">
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => setStageFilter('all')} style={{ background: stageFilter === 'all' ? 'var(--navy)' : 'var(--white)', color: stageFilter === 'all' ? 'var(--cream)' : 'var(--ink-soft)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer' }} className="px-3 py-1.5 text-[11px]">All</button>
+            {stages.map(s => (
+              <button key={s} onClick={() => setStageFilter(s)} style={{ background: stageFilter === s ? 'var(--navy)' : 'var(--white)', color: stageFilter === s ? 'var(--cream)' : 'var(--ink-soft)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer' }} className="px-3 py-1.5 text-[11px]">
+                {QUESTION_STAGE_LABELS[s]}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {filtered.map(q => (
+              <div key={q.id} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '10px 12px', opacity: q.status === 'asked' ? 0.6 : 1 }}>
+                <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px] mb-1">
+                  {q.status === 'asked' && '✓ '}{q.question}
+                </p>
+                {q.factor && (
+                  <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] mb-1">
+                    Driven by: {PRIORITY_FACTOR_LABELS[q.factor]}
+                  </p>
+                )}
+                {q.status === 'asked' && q.coach_answer && (
+                  <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">A: {q.coach_answer}</p>
+                )}
+                {q.status === 'pending' && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      value={answerDraft[q.id] ?? ''}
+                      onChange={e => setAnswerDraft(prev => ({ ...prev, [q.id]: e.target.value }))}
+                      placeholder="Their answer (optional)"
+                      style={{ flex: 1, border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 12 }}
+                      className="px-2 py-1"
+                    />
+                    <button onClick={() => handleAsk(q.id)} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                      Mark asked
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-        {hasNotes && (
-          <button
-            onClick={() => setShowNotes(v => !v)}
-            style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
-          >
-            {showNotes ? 'Hide' : 'Notes'}
-          </button>
-        )}
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Offer details
+// ---------------------------------------------------------------------------
+
+function OfferSection({ engagementId, vendorId, nilAmount, nilNotes, ptEstimate, decisionDeadline }: {
+  engagementId: string; vendorId: string
+  nilAmount: number | null; nilNotes: string | null; ptEstimate: string | null; decisionDeadline: string | null
+}) {
+  const [editing, setEditing] = useState(false)
+  const [amount, setAmount] = useState(nilAmount != null ? String(nilAmount) : '')
+  const [notes, setNotes] = useState(nilNotes ?? '')
+  const [pt, setPt] = useState(ptEstimate ?? '')
+  const [deadline, setDeadline] = useState(decisionDeadline ?? '')
+  const [pending, start] = useTransition()
+
+  const inputStyle = { border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 13, width: '100%' }
+
+  function handleSave() {
+    start(async () => {
+      await updateSchoolOffer(vendorId, engagementId, { nilAmount: amount, nilNotes: notes, ptEstimate: pt, decisionDeadline: deadline })
+      setEditing(false)
+    })
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+          Offer details
+        </p>
+        <button type="button" onClick={() => setEditing(v => !v)} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+          {editing ? 'Cancel' : 'Edit'}
+        </button>
       </div>
-      {showNotes && hasNotes && (
-        <div style={{ background: 'var(--cream)', borderRadius: 3, padding: '12px 14px', marginTop: 10 }}>
-          <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }} className="text-[13px]">
-            {interaction.notes}
-          </p>
+      {editing ? (
+        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" placeholder="NIL amount ($)" style={inputStyle} className="px-3 py-2" />
+            <input value={pt} onChange={e => setPt(e.target.value)} placeholder="PT estimate (e.g. Starter)" style={inputStyle} className="px-3 py-2" />
+          </div>
+          <input value={deadline} onChange={e => setDeadline(e.target.value)} type="date" style={inputStyle} className="px-3 py-2" />
+          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Offer notes" style={inputStyle} className="px-3 py-2" />
+          <button onClick={handleSave} disabled={pending} style={{ background: 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700 }} className="px-4 py-2">
+            {pending ? 'Saving…' : 'Save offer'}
+          </button>
+        </div>
+      ) : (
+        (nilAmount != null || ptEstimate || decisionDeadline || nilNotes) && (
+          <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '10px 12px', fontFamily: 'var(--sans)' }} className="text-[13px]">
+            {nilAmount != null && <div>${nilAmount.toLocaleString()} NIL</div>}
+            {ptEstimate && <div style={{ color: 'var(--ink-soft)' }}>PT: {ptEstimate}</div>}
+            {decisionDeadline && <div style={{ color: 'var(--ink-soft)' }}>Decision deadline: {formatDate(decisionDeadline)}</div>}
+            {nilNotes && <div style={{ color: 'var(--ink-soft)' }}>{nilNotes}</div>}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// School Card
+// ---------------------------------------------------------------------------
+
+function SchoolCard({ school, engagementId }: { school: SchoolWithDetails; engagementId: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const [logging, setLogging] = useState(false)
+  const [nextStep, setNextStep] = useState(school.metadata?.next_step ?? '')
+  const [savingNext, startSavingNext] = useTransition()
+  const [, startStage] = useTransition()
+  const [, startStatus] = useTransition()
+  const [passReason, setPassReason] = useState('')
+  const [showPassForm, setShowPassForm] = useState(false)
+
+  const lastComm = school.communications[0]
+
+  function handleStageChange(s: PipelineStage) {
+    startStage(async () => { await updateSchoolStage(school.id, engagementId, s) })
+  }
+
+  function handlePass() {
+    startStatus(async () => { await updateSchoolStatus(school.id, engagementId, 'passed', passReason); setShowPassForm(false) })
+  }
+
+  function handleCommit() {
+    startStatus(async () => { await updateSchoolStatus(school.id, engagementId, 'committed') })
+  }
+
+  function handleReactivate() {
+    startStatus(async () => { await updateSchoolStatus(school.id, engagementId, 'active') })
+  }
+
+  function handleNextStep() {
+    startSavingNext(async () => { await updateNextStep(school.id, engagementId, nextStep) })
+  }
+
+  const activeFlagCount = school.redFlags.filter(f => f.status !== 'resolved').length
+
+  return (
+    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', borderRadius: 4, overflow: 'hidden' }}>
+      <div style={{ padding: '16px 20px' }}>
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 style={{ fontFamily: 'var(--display)', color: 'var(--navy)', lineHeight: 1.2 }} className="text-[20px] font-medium truncate">
+                {school.name}
+              </h3>
+              <StatusPill status={school.pipeline_status} />
+              {activeFlagCount > 0 && (
+                <span style={{ background: '#F4D9D7', color: '#9E2A2B', border: '1px solid #E8B4B2', fontFamily: 'var(--sans)' }} className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-sm">
+                  🚩 {activeFlagCount}
+                </span>
+              )}
+            </div>
+            {school.contact_name && (
+              <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[13px] mt-1">
+                {school.contact_name}
+                {school.contact_email && <span style={{ color: 'var(--slate-soft)' }}> · {school.contact_email}</span>}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {school.pipeline_status !== 'passed' && (
+          <div className="mt-3 mb-3">
+            <StageProgress stage={school.pipeline_stage} status={school.pipeline_status} onChange={handleStageChange} />
+          </div>
+        )}
+        {school.pipeline_status === 'passed' && school.passed_reason && (
+          <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mt-2">Reason: {school.passed_reason}</p>
+        )}
+
+        {(school.nil_offer_amount != null || school.pt_estimate || school.decision_deadline) && (
+          <div className="flex items-center gap-4 mt-2 flex-wrap">
+            {school.nil_offer_amount != null && <span style={{ fontFamily: 'var(--mono)', color: 'var(--navy)', fontWeight: 700 }} className="text-[13px]">${school.nil_offer_amount.toLocaleString()} NIL</span>}
+            {school.pt_estimate && <span style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">PT: {school.pt_estimate}</span>}
+            {school.decision_deadline && <span style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">Deadline: {formatDate(school.decision_deadline)}</span>}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mt-3">
+          <input
+            value={nextStep} onChange={e => setNextStep(e.target.value)} onBlur={handleNextStep}
+            onKeyDown={e => e.key === 'Enter' && handleNextStep()}
+            placeholder="Next step…"
+            style={{ flex: 1, border: 'none', borderBottom: '1px solid var(--line)', background: 'transparent', color: 'var(--ink-soft)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 14 }}
+            className="py-1"
+          />
+          {savingNext && <span style={{ color: 'var(--slate-soft)', fontSize: 11, fontFamily: 'var(--sans)' }}>saving…</span>}
+        </div>
+
+        <div className="flex items-center justify-between mt-3">
+          <span style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">
+            {lastComm ? `Last: ${lastComm.title} on ${formatDate(lastComm.scheduled_at)}` : 'No communications yet'}
+            {school.communications.length > 0 && ` · ${school.communications.length} total`}
+          </span>
+          <button onClick={() => setExpanded(v => !v)} style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13 }} className="py-1 pl-4">
+            {expanded ? 'Less ↑' : 'Details ↓'}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ borderTop: '1px solid var(--line)', padding: '16px 20px', background: 'var(--paper)' }}>
+          {school.pipeline_status === 'active' && (
+            <div className="flex items-center gap-2 mb-4">
+              <button onClick={handleCommit} style={{ background: 'var(--green)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }} className="px-3 py-2">
+                Commit here
+              </button>
+              {!showPassForm ? (
+                <button onClick={() => setShowPassForm(true)} style={{ background: 'transparent', color: 'var(--red)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }} className="px-3 py-2">
+                  Pass
+                </button>
+              ) : (
+                <>
+                  <input value={passReason} onChange={e => setPassReason(e.target.value)} placeholder="Why pass?" style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', fontSize: 12 }} className="px-2 py-2" />
+                  <button onClick={handlePass} style={{ background: 'var(--red)', color: 'var(--cream)', border: 'none', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11 }} className="px-3 py-2">Confirm</button>
+                </>
+              )}
+            </div>
+          )}
+          {school.pipeline_status !== 'active' && (
+            <button onClick={handleReactivate} style={{ background: 'transparent', color: 'var(--navy)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }} className="px-3 py-2 mb-4">
+              Reactivate
+            </button>
+          )}
+
+          <OfferSection
+            engagementId={engagementId} vendorId={school.id}
+            nilAmount={school.nil_offer_amount} nilNotes={school.nil_offer_notes}
+            ptEstimate={school.pt_estimate} decisionDeadline={school.decision_deadline}
+          />
+          <RedFlagsSection engagementId={engagementId} vendorId={school.id} flags={school.redFlags} historicalFlags={school.historicalFlags} />
+          <ResearchSection engagementId={engagementId} vendorId={school.id} schoolId={school.school_id} notes={school.researchNotes} structured={school.researchStructured} />
+          <QuestionsSection engagementId={engagementId} questions={school.questions} />
+
+          {!logging && (
+            <button onClick={() => setLogging(true)} style={{ width: '100%', background: 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' }} className="py-4 mb-4">
+              + Log communication
+            </button>
+          )}
+          {logging && <LogInteractionForm engagementId={engagementId} vendorId={school.id} onDone={() => setLogging(false)} />}
+
+          {school.communications.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: logging ? 16 : 0 }}>
+              <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+                Communication history
+              </p>
+              {school.communications.map(c => <CommunicationEntryView key={c.id} entry={c} />)}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -435,22 +877,28 @@ function InteractionEntry({ interaction }: {
 // Main Panel
 // ---------------------------------------------------------------------------
 
-export function SchoolsPanel({ engagementId, schools }: { engagementId: string; schools: SchoolWithInteractions[] }) {
+export function SchoolsPanel({ engagementId, schools, exitInterviewFlags, exitInterviewAvoid }: {
+  engagementId: string
+  schools: SchoolWithDetails[]
+  exitInterviewFlags: RedFlagEntry[]
+  exitInterviewAvoid: string | null
+}) {
   const [showAdd, setShowAdd] = useState(schools.length === 0)
-  const [filter, setFilter] = useState<SchoolStatus | 'all'>('all')
+  const [filter, setFilter] = useState<'all' | PipelineStatus>('all')
 
-  const filtered = filter === 'all' ? schools : schools.filter(s => s.proposal_status === filter)
+  const filtered = filter === 'all' ? schools : schools.filter(s => s.pipeline_status === filter)
 
-  const counts = {
-    all: schools.length,
-    ...(Object.fromEntries(
-      (Object.keys(SCHOOL_STATUS_LABELS) as SchoolStatus[]).map(s => [s, schools.filter(x => x.proposal_status === s).length])
-    )) as Record<SchoolStatus, number>,
-  }
+  const activeCount = schools.filter(s => s.pipeline_status === 'active').length
+  const committedCount = schools.filter(s => s.pipeline_status === 'committed').length
+  const passedCount = schools.filter(s => s.pipeline_status === 'passed').length
+  const totalActiveFlags = schools.reduce((sum, s) => sum + s.redFlags.filter(f => f.status !== 'resolved').length, 0)
+  const stageCounts = PIPELINE_STAGES.map(s => ({
+    ...s,
+    count: schools.filter(sc => sc.pipeline_status === 'active' && sc.pipeline_stage === s.value).length,
+  }))
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 0 80px' }}>
-      {/* Header */}
       <div className="mb-6">
         <p style={{ color: 'var(--gold)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold tracking-[0.2em] uppercase mb-2">
           College Recruitment
@@ -459,49 +907,66 @@ export function SchoolsPanel({ engagementId, schools }: { engagementId: string; 
           School Tracker
         </h1>
         <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[14px]">
-          {schools.length} school{schools.length !== 1 ? 's' : ''} tracked
+          {activeCount} active · {committedCount} committed · {passedCount} passed
+          {totalActiveFlags > 0 && ` · ${totalActiveFlags} open red flag${totalActiveFlags !== 1 ? 's' : ''}`}
         </p>
       </div>
 
-      {/* Filter tabs — horizontally scrollable on mobile */}
+      {exitInterviewAvoid && (
+        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '14px 18px', marginBottom: 16 }}>
+          <p style={{ color: 'var(--gold)', fontFamily: 'var(--sans)' }} className="text-[10px] font-semibold uppercase tracking-widest mb-1">
+            Avoid repeating
+          </p>
+          <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px]">{exitInterviewAvoid}</p>
+        </div>
+      )}
+
+      {exitInterviewFlags.length > 0 && (
+        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '14px 18px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {exitInterviewFlags.map(f => (
+            <div key={f.id} className="flex items-center gap-2">
+              <SeverityBadge severity={f.severity} />
+              <span style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px]">{f.flag}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 8, minWidth: 'max-content' }}>
-          {([['all', 'All'], ...Object.entries(SCHOOL_STATUS_LABELS)] as [string, string][]).map(([value, label]) => {
-            const count = counts[value as SchoolStatus | 'all'] ?? 0
+          {stageCounts.map(s => (
+            <span key={s.value} style={{ background: 'var(--white)', border: '1px solid var(--line)', color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="px-3 py-1.5 text-[12px] whitespace-nowrap">
+              {s.label}: {s.count}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, minWidth: 'max-content' }}>
+          {([['all', 'All'], ['active', 'Active'], ['committed', 'Committed'], ['passed', 'Passed']] as [string, string][]).map(([value, label]) => {
             const active = filter === value
             return (
-              <button
-                key={value}
-                onClick={() => setFilter(value as SchoolStatus | 'all')}
-                style={{
-                  background: active ? 'var(--navy)' : 'var(--white)',
-                  color: active ? 'var(--cream)' : 'var(--ink-soft)',
-                  border: `1px solid ${active ? 'var(--navy)' : 'var(--line)'}`,
-                  fontFamily: 'var(--sans)', cursor: 'pointer', whiteSpace: 'nowrap',
-                }}
+              <button key={value} onClick={() => setFilter(value as 'all' | PipelineStatus)}
+                style={{ background: active ? 'var(--navy)' : 'var(--white)', color: active ? 'var(--cream)' : 'var(--ink-soft)', border: `1px solid ${active ? 'var(--navy)' : 'var(--line)'}`, fontFamily: 'var(--sans)', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 className="px-4 py-2 text-[13px] font-medium"
               >
-                {label} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
+                {label}
               </button>
             )
           })}
         </div>
       </div>
 
-      {/* Add school toggle */}
-      <button
-        onClick={() => setShowAdd(v => !v)}
+      <button onClick={() => setShowAdd(v => !v)}
         style={{ width: '100%', background: showAdd ? 'var(--cream)' : 'var(--navy)', color: showAdd ? 'var(--ink-soft)' : 'var(--cream)', fontFamily: 'var(--sans)', border: `1px solid ${showAdd ? 'var(--line)' : 'var(--navy)'}`, cursor: 'pointer', fontWeight: 700, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' }}
         className="py-4 mb-4"
       >
         {showAdd ? '↑ Hide form' : '+ Add school'}
       </button>
 
-      {showAdd && (
-        <AddSchoolForm engagementId={engagementId} onAdded={() => setShowAdd(false)} />
-      )}
+      {showAdd && <AddSchoolForm engagementId={engagementId} onAdded={() => setShowAdd(false)} />}
 
-      {/* School list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {filtered.length === 0 && (
           <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '40px 20px', textAlign: 'center' }}>
@@ -510,9 +975,7 @@ export function SchoolsPanel({ engagementId, schools }: { engagementId: string; 
             </p>
           </div>
         )}
-        {filtered.map(school => (
-          <SchoolCard key={school.id} school={school} engagementId={engagementId} />
-        ))}
+        {filtered.map(school => <SchoolCard key={school.id} school={school} engagementId={engagementId} />)}
       </div>
     </div>
   )

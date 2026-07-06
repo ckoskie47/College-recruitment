@@ -3,8 +3,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { generateVisitQuestions } from '@/lib/ai/visit-question-generator'
-import type { AthleteProfile, VisitQuestionBooklet } from '@/lib/ai/visit-question-generator'
-import type { Json } from '@/lib/supabase/types'
+import type { AthleteProfile, ExitInterview, VisitQuestionBooklet } from '@/lib/ai/visit-question-generator'
+import { generateQuestionBank } from '@/lib/ai/question-bank-generator'
+import type { Json, Database } from '@/lib/supabase/types'
 import { sendOrgInvite } from '@/lib/invite/sendOrgInvite'
 import { renderAthleteInviteEmail } from '@/lib/email/templates/athleteInvite'
 
@@ -24,6 +25,84 @@ export async function saveAthleteProfile(
 
   if (error) return { success: false, error: error.message }
   return { success: true }
+}
+
+export async function saveExitInterview(
+  engagementId: string,
+  exitInterview: ExitInterview,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Unauthorized' }
+
+  const svc = createServiceClient()
+  const { error } = await svc
+    .from('engagements')
+    .update({ exit_interview: exitInterview as unknown as Json })
+    .eq('id', engagementId)
+
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Generate the reusable (~35 question) stage-organized question bank from
+// the saved profile + exit interview, and persist it to the questions table.
+// ---------------------------------------------------------------------------
+
+type QuestionInsert = Database['public']['Tables']['questions']['Insert']
+
+export async function generateQuestionBankAction(
+  engagementId: string,
+  athleteName: string,
+): Promise<{ success: boolean; count?: number; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Unauthorized' }
+
+  const svc = createServiceClient()
+  const { data: eng } = await svc
+    .from('engagements')
+    .select('athlete_profile, exit_interview')
+    .eq('id', engagementId)
+    .single()
+
+  if (!eng?.athlete_profile) {
+    return { success: false, error: 'Complete the athlete profile first.' }
+  }
+
+  const exitInterview = (eng.exit_interview as unknown as ExitInterview | null) ?? {
+    reasons: [], details: {}, redFlagsToAvoid: '',
+  }
+
+  let generated
+  try {
+    generated = await generateQuestionBank(
+      eng.athlete_profile as unknown as AthleteProfile,
+      exitInterview,
+      athleteName,
+    )
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to generate question bank.' }
+  }
+
+  // Replace any previously generated generic (non-school-specific) questions.
+  await svc.from('questions').delete().eq('engagement_id', engagementId).is('vendor_id', null)
+
+  const rows: QuestionInsert[] = generated.map((q, i) => ({
+    engagement_id: engagementId,
+    vendor_id: null,
+    stage: q.stage,
+    source: q.factor ? 'priority' : 'exit_interview',
+    factor: q.factor,
+    question: q.question,
+    sort_order: i,
+  }))
+
+  const { error } = await svc.from('questions').insert(rows)
+  if (error) return { success: false, error: error.message }
+
+  return { success: true, count: rows.length }
 }
 
 export async function generateVisitQuestionsAction(

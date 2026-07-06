@@ -4,30 +4,61 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { revalidatePath } from 'next/cache'
 import type { Database, Json } from '@/lib/supabase/types'
+import { analyzeSchoolResearch, type SchoolResearch } from '@/lib/ai/school-research-analyzer'
 
-// Use real DB enum values — just relabeled in the UI
-export type SchoolStatus = Database['public']['Enums']['proposal_status']
+export type PipelineStage = Database['public']['Enums']['pipeline_stage']
+export type PipelineStatus = Database['public']['Enums']['pipeline_status']
+export type CommType = Database['public']['Enums']['comm_type']
+export type EnergyLevel = Database['public']['Enums']['energy_level']
+export type RedFlagSeverity = Database['public']['Enums']['red_flag_severity']
+export type RedFlagStatus = Database['public']['Enums']['red_flag_status']
+export type RedFlagSource = Database['public']['Enums']['red_flag_source']
+export type QuestionStage = Database['public']['Enums']['question_stage']
+export type QuestionSource = Database['public']['Enums']['question_source']
+export type PriorityFactor = Database['public']['Enums']['priority_factor']
 
-export const SCHOOL_STATUS_LABELS: Record<SchoolStatus, string> = {
-  invited:    'Tracking',
-  submitted:  'Offered',
-  finalist:   'Top Choice',
-  selected:   'Committed',
-  eliminated: 'Declined',
-  declined:   'Declined',
+export const RED_FLAG_SEVERITIES: RedFlagSeverity[] = ['low', 'medium', 'high']
+
+export const QUESTION_STAGE_LABELS: Record<QuestionStage, string> = {
+  intro_call:        'Intro Call',
+  deep_dive:         'Deep Dive Calls',
+  zoom:              'Zoom Call',
+  visit:             'Campus Visit',
+  research_homework: 'Research Homework',
 }
 
-export const INTERACTION_TYPES = [
-  { value: 'phone_call',         label: 'Phone call' },
-  { value: 'video_call',         label: 'Video call' },
-  { value: 'unofficial_visit',   label: 'Unofficial visit' },
-  { value: 'official_visit',     label: 'Official visit' },
-  { value: 'text_exchange',      label: 'Text / email' },
-  { value: 'coaches_home_visit', label: "Coach's home visit" },
-  { value: 'other',              label: 'Other' },
-] as const
+export const PIPELINE_STAGES: { value: PipelineStage; label: string }[] = [
+  { value: 'initial_contact', label: 'Text' },
+  { value: 'call_1',          label: 'Call 1' },
+  { value: 'call_2_plus',     label: 'Call 2+' },
+  { value: 'zoom',            label: 'Zoom' },
+  { value: 'visit',           label: 'Visit' },
+  { value: 'decision',        label: 'Decision' },
+]
 
-export type InteractionType = typeof INTERACTION_TYPES[number]['value']
+export const COMM_TYPES: { value: CommType; label: string }[] = [
+  { value: 'text',         label: 'Text / DM' },
+  { value: 'call_1',       label: 'Phone call #1 (intro)' },
+  { value: 'call_2_plus',  label: 'Phone call (deep dive)' },
+  { value: 'zoom',         label: 'Zoom call' },
+  { value: 'visit',        label: 'Campus visit' },
+  { value: 'other',        label: 'Other' },
+]
+
+export const ENERGY_LEVELS: { value: EnergyLevel; label: string }[] = [
+  { value: 'interested',      label: 'Interested' },
+  { value: 'very_interested', label: 'Very interested' },
+  { value: 'leaning',         label: 'Leaning' },
+  { value: 'neutral',         label: 'Neutral' },
+  { value: 'passed',          label: 'Passed' },
+]
+
+const STAGE_ORDER: PipelineStage[] = ['initial_contact', 'call_1', 'call_2_plus', 'zoom', 'visit', 'decision']
+const STAGE_FOR_COMM: Partial<Record<CommType, PipelineStage>> = {
+  text: 'initial_contact', call_1: 'call_1', call_2_plus: 'call_2_plus', zoom: 'zoom', visit: 'visit',
+}
+
+export type QuestionAskedInput = { question: string; answer: string; redFlagIdentified: boolean }
 
 // ---------------------------------------------------------------------------
 
@@ -38,8 +69,33 @@ async function getCtx() {
   return { user, svc: createServiceClient() }
 }
 
+async function findOrCreateSchool(
+  svc: ReturnType<typeof createServiceClient>,
+  organizationId: string,
+  name: string,
+): Promise<string> {
+  const trimmed = name.trim()
+  const { data: existing } = await svc
+    .from('schools')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .ilike('name', trimmed)
+    .maybeSingle()
+
+  if (existing) return existing.id
+
+  const { data: created, error } = await svc
+    .from('schools')
+    .insert({ organization_id: organizationId, name: trimmed })
+    .select('id')
+    .single()
+
+  if (error || !created) throw new Error(error?.message ?? 'Failed to create school.')
+  return created.id
+}
+
 // ---------------------------------------------------------------------------
-// Add a school (vendor)
+// Add a school (creates/links the shared org-level school + a per-engagement vendor row)
 // ---------------------------------------------------------------------------
 
 export async function addSchool(
@@ -47,65 +103,29 @@ export async function addSchool(
   name: string,
   coachName: string,
   coachContact: string,
-  scholarshipPct: string,
-  status: SchoolStatus,
 ): Promise<{ success: boolean; error?: string }> {
   const ctx = await getCtx()
   if (!ctx) return { success: false, error: 'Unauthorized' }
+  if (!name.trim()) return { success: false, error: 'Enter a school name.' }
 
-  const pct = scholarshipPct ? parseFloat(scholarshipPct) : null
-  const { error } = await ctx.svc
-    .from('vendors')
-    .insert({
-      engagement_id: engagementId,
-      name: name.trim(),
-      contact_name: coachName.trim() || null,
-      contact_email: coachContact.trim() || null,
-      proposed_fee_amount: pct,
-      proposal_status: status,
-      metadata: { next_step: '' },
-    })
+  const { data: eng } = await ctx.svc.from('engagements').select('organization_id').eq('id', engagementId).single()
+  if (!eng) return { success: false, error: 'Engagement not found.' }
 
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/e/${engagementId}/schools`)
-  return { success: true }
-}
-
-// ---------------------------------------------------------------------------
-// Update school status, offer, coach info, or next step
-// ---------------------------------------------------------------------------
-
-export async function updateSchool(
-  vendorId: string,
-  engagementId: string,
-  fields: {
-    status?: SchoolStatus
-    scholarshipPct?: string
-    coachName?: string
-    coachContact?: string
-    nextStep?: string
-  },
-): Promise<{ success: boolean; error?: string }> {
-  const ctx = await getCtx()
-  if (!ctx) return { success: false, error: 'Unauthorized' }
-
-  let metadata: object | undefined
-  if (fields.nextStep !== undefined) {
-    const { data: current } = await ctx.svc
-      .from('vendors').select('metadata').eq('id', vendorId).single()
-    metadata = { ...(current?.metadata as object ?? {}), next_step: fields.nextStep }
+  let schoolId: string
+  try {
+    schoolId = await findOrCreateSchool(ctx.svc, eng.organization_id, name)
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to create school.' }
   }
 
-  const { error } = await ctx.svc
-    .from('vendors')
-    .update({
-      ...(fields.status !== undefined && { proposal_status: fields.status }),
-      ...(fields.scholarshipPct !== undefined && { proposed_fee_amount: fields.scholarshipPct ? parseFloat(fields.scholarshipPct) : null }),
-      ...(fields.coachName !== undefined && { contact_name: fields.coachName.trim() || null }),
-      ...(fields.coachContact !== undefined && { contact_email: fields.coachContact.trim() || null }),
-      ...(metadata !== undefined && { metadata: metadata as Json }),
-    })
-    .eq('id', vendorId)
+  const { error } = await ctx.svc.from('vendors').insert({
+    engagement_id: engagementId,
+    school_id: schoolId,
+    name: name.trim(),
+    contact_name: coachName.trim() || null,
+    contact_email: coachContact.trim() || null,
+    metadata: { next_step: '' },
+  })
 
   if (error) return { success: false, error: error.message }
   revalidatePath(`/e/${engagementId}/schools`)
@@ -113,42 +133,253 @@ export async function updateSchool(
 }
 
 // ---------------------------------------------------------------------------
-// Log an interaction (creates a meeting row with notes)
+// Pipeline stage / status / offer / next-step updates
+// ---------------------------------------------------------------------------
+
+export async function updateSchoolStage(
+  vendorId: string, engagementId: string, stage: PipelineStage,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  const { error } = await ctx.svc.from('vendors').update({ pipeline_stage: stage }).eq('id', vendorId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+export async function updateSchoolStatus(
+  vendorId: string, engagementId: string, status: PipelineStatus, passedReason?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  const { error } = await ctx.svc.from('vendors').update({
+    pipeline_status: status,
+    passed_reason: status === 'passed' ? (passedReason?.trim() || null) : null,
+  }).eq('id', vendorId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+export async function updateSchoolOffer(
+  vendorId: string,
+  engagementId: string,
+  fields: { nilAmount?: string; nilNotes?: string; ptEstimate?: string; decisionDeadline?: string },
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  const { error } = await ctx.svc.from('vendors').update({
+    ...(fields.nilAmount !== undefined && { nil_offer_amount: fields.nilAmount ? parseFloat(fields.nilAmount) : null }),
+    ...(fields.nilNotes !== undefined && { nil_offer_notes: fields.nilNotes.trim() || null }),
+    ...(fields.ptEstimate !== undefined && { pt_estimate: fields.ptEstimate.trim() || null }),
+    ...(fields.decisionDeadline !== undefined && { decision_deadline: fields.decisionDeadline || null }),
+  }).eq('id', vendorId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+export async function updateNextStep(
+  vendorId: string, engagementId: string, nextStep: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  const { data: current } = await ctx.svc.from('vendors').select('metadata').eq('id', vendorId).single()
+  const metadata = { ...(current?.metadata as object ?? {}), next_step: nextStep }
+  const { error } = await ctx.svc.from('vendors').update({ metadata: metadata as Json }).eq('id', vendorId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Log a structured communication — creates a meeting row and auto-advances
+// the pipeline stage if this touchpoint represents further progress.
 // ---------------------------------------------------------------------------
 
 export async function logInteraction(
   engagementId: string,
   vendorId: string,
-  type: InteractionType,
-  date: string,
-  summary: string,
-  notes: string,
-  participants: string[],
+  fields: {
+    commType: CommType
+    date: string
+    durationMinutes: string
+    whoInitiated: string
+    topics: string[]
+    keyPoints: string[]
+    questionsAsked: QuestionAskedInput[]
+    athleteTakeaway: string
+    energyLevel: EnergyLevel | ''
+    notes: string
+    participants: string[]
+  },
 ): Promise<{ success: boolean; error?: string }> {
   const ctx = await getCtx()
   if (!ctx) return { success: false, error: 'Unauthorized' }
 
-  const label = INTERACTION_TYPES.find(t => t.value === type)?.label ?? type
-  const title = `${label}${summary ? ` · ${summary}` : ''}`
+  const title = COMM_TYPES.find(t => t.value === fields.commType)?.label ?? fields.commType
 
-  const { data: meeting, error: meetingErr } = await ctx.svc
-    .from('meetings')
-    .insert({
-      engagement_id: engagementId,
-      vendor_id: vendorId,
-      title,
-      scheduled_at: new Date(date).toISOString(),
-      status: 'complete',
-      location: type,
-      attendees: participants,
-      notes: notes.trim() || null,
-      created_by: ctx.user.id,
-    })
-    .select('id')
-    .single()
+  const { error } = await ctx.svc.from('meetings').insert({
+    engagement_id: engagementId,
+    vendor_id: vendorId,
+    title,
+    scheduled_at: new Date(fields.date).toISOString(),
+    status: 'complete',
+    duration_minutes: fields.durationMinutes ? parseInt(fields.durationMinutes, 10) : null,
+    attendees: fields.participants,
+    notes: fields.notes.trim() || null,
+    comm_type: fields.commType,
+    topics: fields.topics.filter(Boolean),
+    key_points: fields.keyPoints.filter(Boolean),
+    questions_asked: fields.questionsAsked.filter(q => q.question.trim()) as unknown as Json,
+    athlete_takeaway: fields.athleteTakeaway.trim() || null,
+    energy_level: fields.energyLevel || null,
+    who_initiated: fields.whoInitiated.trim() || null,
+    created_by: ctx.user.id,
+  })
 
-  if (meetingErr || !meeting) return { success: false, error: meetingErr?.message ?? 'Failed to log interaction.' }
+  if (error) return { success: false, error: error.message }
 
+  const impliedStage = STAGE_FOR_COMM[fields.commType]
+  if (impliedStage) {
+    const { data: vendor } = await ctx.svc.from('vendors').select('pipeline_stage').eq('id', vendorId).single()
+    if (vendor && STAGE_ORDER.indexOf(impliedStage) > STAGE_ORDER.indexOf(vendor.pipeline_stage)) {
+      await ctx.svc.from('vendors').update({ pipeline_stage: impliedStage }).eq('id', vendorId)
+    }
+  }
+
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Red flags
+// ---------------------------------------------------------------------------
+
+export async function addRedFlag(
+  engagementId: string,
+  vendorId: string | null,
+  flag: string,
+  severity: RedFlagSeverity,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  if (!flag.trim()) return { success: false, error: 'Enter a red flag.' }
+
+  const { error } = await ctx.svc.from('red_flags').insert({
+    engagement_id: engagementId,
+    vendor_id: vendorId,
+    source: 'athlete_logged',
+    flag: flag.trim(),
+    severity,
+  })
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+export async function updateRedFlagStatus(
+  redFlagId: string,
+  engagementId: string,
+  status: RedFlagStatus,
+  resolutionNotes?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  const { error } = await ctx.svc.from('red_flags').update({
+    status,
+    ...(resolutionNotes !== undefined && { resolution_notes: resolutionNotes.trim() || null }),
+  }).eq('id', redFlagId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// School research — AI-structures pasted notes, files detected red flags,
+// and drafts research-homework questions for this specific school.
+// ---------------------------------------------------------------------------
+
+export async function saveSchoolResearch(
+  engagementId: string,
+  vendorId: string,
+  schoolId: string,
+  rawNotes: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  if (!rawNotes.trim()) return { success: false, error: 'Paste in some research notes first.' }
+
+  const [{ data: school }, { data: vendor }] = await Promise.all([
+    ctx.svc.from('schools').select('research_structured').eq('id', schoolId).single(),
+    ctx.svc.from('vendors').select('name').eq('id', vendorId).single(),
+  ])
+  const prior = (school?.research_structured as unknown as SchoolResearch | null) ?? null
+
+  let result
+  try {
+    result = await analyzeSchoolResearch(vendor?.name ?? 'this school', rawNotes, prior)
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to analyze research.' }
+  }
+
+  const { error: schoolErr } = await ctx.svc.from('schools').update({
+    research_notes: rawNotes,
+    research_structured: result.research as unknown as Json,
+    updated_at: new Date().toISOString(),
+  }).eq('id', schoolId)
+  if (schoolErr) return { success: false, error: schoolErr.message }
+
+  // Re-analysis replaces the previous research-derived flags/questions rather than piling up duplicates.
+  await ctx.svc.from('red_flags').delete().eq('engagement_id', engagementId).eq('vendor_id', vendorId).eq('source', 'research')
+  await ctx.svc.from('questions').delete().eq('engagement_id', engagementId).eq('vendor_id', vendorId).eq('stage', 'research_homework')
+
+  if (result.research.redFlags.length > 0) {
+    await ctx.svc.from('red_flags').insert(
+      result.research.redFlags.map(f => ({
+        engagement_id: engagementId,
+        vendor_id: vendorId,
+        source: 'research' as const,
+        flag: f.flag,
+        severity: f.severity,
+        resolution_notes: f.details,
+      })),
+    )
+  }
+
+  if (result.researchHomeworkQuestions.length > 0) {
+    await ctx.svc.from('questions').insert(
+      result.researchHomeworkQuestions.map((q, i) => ({
+        engagement_id: engagementId,
+        vendor_id: vendorId,
+        stage: 'research_homework' as const,
+        source: 'research' as const,
+        question: q.question,
+        sort_order: i,
+      })),
+    )
+  }
+
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Mark a question asked / record the coach's answer
+// ---------------------------------------------------------------------------
+
+export async function markQuestionAsked(
+  questionId: string,
+  engagementId: string,
+  coachAnswer: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  const { error } = await ctx.svc.from('questions').update({
+    status: 'asked',
+    coach_answer: coachAnswer.trim() || null,
+  }).eq('id', questionId)
+  if (error) return { success: false, error: error.message }
   revalidatePath(`/e/${engagementId}/schools`)
   return { success: true }
 }

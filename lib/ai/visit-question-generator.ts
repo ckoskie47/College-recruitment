@@ -40,6 +40,62 @@ export type AthleteProfile = {
   q5_success_definition:  DecisionProfileAnswer
 }
 
+// ---------------------------------------------------------------------------
+// Part 3: Exit Interview
+// ---------------------------------------------------------------------------
+
+export type ExitReason =
+  | 'not_getting_pt'
+  | 'coaching_fit'
+  | 'program_direction'
+  | 'culture_fit'
+  | 'staff_turnover'
+  | 'personal_development'
+  | 'location_family'
+  | 'academic_fit'
+  | 'nil_financial'
+
+export const EXIT_REASON_LABELS: Record<ExitReason, string> = {
+  not_getting_pt:        'Not getting PT / depth chart concerns',
+  coaching_fit:          'Coaching fit / philosophy mismatch',
+  program_direction:     'Program direction / lack of winning',
+  culture_fit:           'Culture / team environment fit',
+  staff_turnover:        'Coaching staff turnover / instability',
+  personal_development:  'Personal development not happening',
+  location_family:       'Location / family reasons',
+  academic_fit:          'Academic/major fit',
+  nil_financial:         'NIL / financial opportunity',
+}
+
+// Follow-up questions asked for the top 2-3 reasons selected, where the spec
+// defines them. Reasons without an entry here have no structured follow-up.
+export const EXIT_FOLLOWUPS: Partial<Record<ExitReason, { key: string; prompt: string }[]>> = {
+  not_getting_pt: [
+    { key: 'abs_games',        prompt: 'How many ABs/games did you get?' },
+    { key: 'depth_or_pref',    prompt: 'Was it a depth chart issue or a coaching preference?' },
+    { key: 'pt_guarantee',     prompt: 'What PT guarantee would make you stay?' },
+  ],
+  coaching_fit: [
+    { key: 'specific_issues',  prompt: 'What specific issues? (philosophy, communication, development, expectations)' },
+    { key: 'ideal_style',      prompt: 'What would ideal coaching style look like?' },
+  ],
+  program_direction: [
+    { key: 'metrics',          prompt: "What metrics matter? (winning %, tournament, draft production)" },
+    { key: 'evaluate_quality', prompt: 'How do you evaluate program quality?' },
+  ],
+  culture_fit: [
+    { key: 'specific_issues',  prompt: 'What specific culture issues?' },
+    { key: 'environment',      prompt: 'What team environment do you need?' },
+  ],
+}
+
+export type ExitInterview = {
+  reasons: ExitReason[]
+  // reason -> { followup key -> free-text answer }
+  details: Partial<Record<ExitReason, Record<string, string>>>
+  redFlagsToAvoid: string
+}
+
 export type VisitQuestion = {
   pillar: string
   question: string
