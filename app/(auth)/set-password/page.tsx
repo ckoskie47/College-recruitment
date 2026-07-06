@@ -127,7 +127,7 @@ export default function SetPasswordPage() {
           <span style={{ color: 'var(--navy)' }}> Advisor Group</span>
         </p>
         <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)', fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', marginTop: 4 }}>
-          Fiduciary Workspace
+          RecruitPortal
         </p>
       </div>
 

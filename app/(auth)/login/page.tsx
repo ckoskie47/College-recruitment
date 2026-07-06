@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { LoginForm } from './LoginForm'
 
 export const metadata: Metadata = {
-  title: 'Sign in — Elevate Fiduciary Workspace',
+  title: 'Sign in — RecruitPortal',
 }
 
 export default function LoginPage({
@@ -30,7 +30,7 @@ export default function LoginPage({
           style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }}
           className="text-[10px] font-semibold tracking-[0.22em] uppercase"
         >
-          Fiduciary Workspace
+          RecruitPortal
         </p>
       </div>
 

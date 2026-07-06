@@ -40,7 +40,7 @@ export function renderInviteEmail({ orgName, inviteUrl, invitedByEmail }: Invite
                 Elevate Advisor Group
               </p>
               <h1 style="margin:0;font-size:26px;font-weight:500;color:#0F2A47;letter-spacing:-0.01em;line-height:1.2;">
-                Fiduciary Workspace
+                RecruitPortal
               </h1>
             </td>
           </tr>
@@ -61,7 +61,7 @@ export function renderInviteEmail({ orgName, inviteUrl, invitedByEmail }: Invite
                 You have been invited to the <strong style="color:#0F2A47;">${orgName}</strong> workspace${invitedByEmail ? ` by ${invitedByEmail}` : ''}.
               </p>
               <p style="margin:0 0 28px;font-size:14px;color:#4A5468;line-height:1.6;">
-                The Elevate Fiduciary Workspace is a vendor procurement platform that helps plan sponsors run documented, scored, and audit-ready selection processes across the HR vendor stack.
+                RecruitPortal helps families run an organized college search — tracking schools, visits, and decisions in one place through every step of the recruiting process.
               </p>
 
               <!-- CTA Button -->

@@ -35,7 +35,7 @@ export function renderMagicLinkEmail({ signInUrl }: MagicLinkEmailProps): {
                 Elevate Advisor Group
               </p>
               <h1 style="margin:0;font-size:26px;font-weight:500;color:#0F2A47;letter-spacing:-0.01em;line-height:1.2;">
-                Fiduciary Workspace
+                RecruitPortal
               </h1>
             </td>
           </tr>
@@ -98,7 +98,7 @@ export function renderMagicLinkEmail({ signInUrl }: MagicLinkEmailProps): {
 </body>
 </html>`
 
-  const text = `Sign in to Elevate Advisor Group — Fiduciary Workspace
+  const text = `Sign in to Elevate Advisor Group — RecruitPortal
 
 Click the link below to sign in. This link expires in 24 hours and can only be used once.
 
