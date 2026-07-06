@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import {
-  saveAthleteProfile, generateVisitQuestionsAction, inviteAthlete, inviteAdvisor,
-  saveExitInterview, generateQuestionBankAction,
+  saveAthleteProfile, inviteAthlete, inviteAdvisor,
+  saveExitInterview, saveCurrentSchool, generateQuestionBankAction,
 } from './actions'
-import type { AthleteProfile, PriorityFactor, VisitQuestion, VisitQuestionBooklet, ExitInterview, ExitReason } from '@/lib/ai/visit-question-generator'
+import type { AthleteProfile, PriorityFactor, ExitInterview, ExitReason } from '@/lib/ai/visit-question-generator'
 import { PRIORITY_FACTOR_LABELS, EXIT_REASON_LABELS, EXIT_FOLLOWUPS } from '@/lib/ai/visit-question-generator'
+import { DragRankList } from '@/components/recruiting/DragRankList'
+import { MicButton } from '@/components/recruiting/MicButton'
 
 const PRIORITY_FACTORS: PriorityFactor[] = [
   'player_development',
@@ -68,9 +70,9 @@ const Q5 = {
 
 const DECISION_QUESTIONS = [Q1, Q2, Q3, Q4, Q5] as const
 type DQKey = 'q1_portal_reason' | 'q2_goal_2027' | 'q3_adversity' | 'q4_playing_time' | 'q5_success_definition'
+type DQOption = 'a' | 'b' | 'c' | 'd'
 const DQ_KEYS: DQKey[] = ['q1_portal_reason', 'q2_goal_2027', 'q3_adversity', 'q4_playing_time', 'q5_success_definition']
-
-const PILLAR_ORDER = ['Athletic Program', 'Playing Time', 'Financial Package', 'Academic Fit', 'Campus & Life Fit']
+const DQ_OPTIONS: DQOption[] = ['a', 'b', 'c', 'd']
 
 function defaultExitInterview(): ExitInterview {
   return { reasons: [], details: {}, redFlagsToAvoid: '' }
@@ -89,98 +91,6 @@ function defaultProfile(): AthleteProfile {
     q4_playing_time: { ...dq },
     q5_success_definition: { ...dq },
   }
-}
-
-function RankInput({
-  value,
-  onChange,
-  min = 1,
-  max = 9,
-}: {
-  value: number
-  onChange: (v: number) => void
-  min?: number
-  max?: number
-}) {
-  return (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={min}
-      max={max}
-      value={value}
-      onFocus={e => e.target.select()}
-      onChange={e => {
-        const n = parseInt(e.target.value, 10)
-        if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, n)))
-      }}
-      style={{
-        width: 48, textAlign: 'center', border: '1px solid var(--line)', background: 'var(--paper)',
-        color: 'var(--navy)', fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 15, outline: 'none',
-      }}
-      className="py-1.5"
-    />
-  )
-}
-
-function QuestionBookletDisplay({ booklet }: { booklet: VisitQuestionBooklet }) {
-  const byPillar = PILLAR_ORDER.map(pillar => ({
-    pillar,
-    questions: booklet.questions.filter(q => q.pillar === pillar),
-  })).filter(g => g.questions.length > 0)
-
-  return (
-    <div>
-      <div className="mb-8">
-        <p style={{ color: 'var(--gold)', fontFamily: 'var(--sans)' }} className="text-[10px] font-semibold tracking-[0.2em] uppercase mb-1">
-          Visit Questions
-        </p>
-        <h2 style={{ fontFamily: 'var(--display)', color: 'var(--navy)' }} className="text-[28px] font-medium tracking-tight mb-2">
-          {booklet.school_name}
-        </h2>
-        {booklet.top_priorities.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {booklet.top_priorities.map((p, i) => (
-              <span key={i} style={{ background: 'var(--cream-deep)', border: '1px solid var(--line)', color: 'var(--navy)', fontFamily: 'var(--sans)' }} className="px-3 py-1 text-[11px] font-semibold">
-                {p}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {byPillar.map(({ pillar, questions }) => (
-        <div key={pillar} className="mb-8">
-          <div style={{ height: 1, background: 'var(--line)', marginBottom: 20, position: 'relative' }}>
-            <div style={{ position: 'absolute', left: 0, top: -1, width: 32, height: 3, background: 'var(--gold)' }} />
-          </div>
-          <p style={{ color: 'var(--gold)', fontFamily: 'var(--sans)' }} className="text-[10px] font-semibold tracking-[0.16em] uppercase mb-4">
-            {pillar}
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {questions.map((q: VisitQuestion, i: number) => (
-              <div key={i} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '20px 24px' }}>
-                <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontWeight: 600, lineHeight: 1.5 }} className="text-[14px] mb-3">
-                  {q.question}
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">
-                    <span style={{ color: 'var(--navy)', fontWeight: 600 }}>Why it matters:</span> {q.why_it_matters}
-                  </p>
-                  <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">
-                    <span style={{ color: 'var(--navy)', fontWeight: 600 }}>Listen for:</span> {q.listen_for}
-                  </p>
-                  <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px]">
-                    Driven by: {q.priority_driver}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 function InviteRow({
@@ -265,9 +175,11 @@ function InviteRow({
 function ExitInterviewSection({
   exitInterview,
   onChange,
+  currentSchool,
 }: {
   exitInterview: ExitInterview
   onChange: (next: ExitInterview) => void
+  currentSchool: string
 }) {
   function toggleReason(reason: ExitReason) {
     const has = exitInterview.reasons.includes(reason)
@@ -284,10 +196,19 @@ function ExitInterviewSection({
     })
   }
 
+  function appendDetail(reason: ExitReason, key: string, spoken: string) {
+    const current = exitInterview.details[reason]?.[key] ?? ''
+    setDetail(reason, key, current ? `${current} ${spoken}` : spoken)
+  }
+
   const inputStyle = {
     border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)',
     fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 14,
   }
+
+  const experienceLabel = currentSchool
+    ? `Tell me about your experience at ${currentSchool}.`
+    : 'Tell me about your experience at your current school.'
 
   return (
     <div className="mb-10">
@@ -317,12 +238,15 @@ function ExitInterviewSection({
                       <label style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="block text-[12px] mb-1.5">
                         {f.prompt}
                       </label>
-                      <input
-                        value={exitInterview.details[reason]?.[f.key] ?? ''}
-                        onChange={e => setDetail(reason, f.key, e.target.value)}
-                        style={inputStyle}
-                        className="px-3 py-2"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={exitInterview.details[reason]?.[f.key] ?? ''}
+                          onChange={e => setDetail(reason, f.key, e.target.value)}
+                          style={inputStyle}
+                          className="px-3 py-2"
+                        />
+                        <MicButton onTranscript={spoken => appendDetail(reason, f.key, spoken)} />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -333,17 +257,23 @@ function ExitInterviewSection({
       </div>
 
       <label htmlFor="red-flags-to-avoid" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
-        What red flags should you avoid in your next school?
+        {experienceLabel}
       </label>
-      <textarea
-        id="red-flags-to-avoid"
-        value={exitInterview.redFlagsToAvoid}
-        onChange={e => onChange({ ...exitInterview, redFlagsToAvoid: e.target.value })}
-        placeholder={'e.g. "Coach who doesn\'t develop position players", "Unclear PT path for transfers"'}
-        rows={3}
-        style={{ ...inputStyle, resize: 'vertical' }}
-        className="px-4 py-3"
-      />
+      <div className="flex items-start gap-2">
+        <textarea
+          id="red-flags-to-avoid"
+          value={exitInterview.redFlagsToAvoid}
+          onChange={e => onChange({ ...exitInterview, redFlagsToAvoid: e.target.value })}
+          placeholder={'What worked, what didn\'t, and what you don\'t want to repeat — e.g. "Coach never followed through on playing time promises."'}
+          rows={4}
+          style={{ ...inputStyle, resize: 'vertical' }}
+          className="px-4 py-3"
+        />
+        <MicButton onTranscript={spoken => onChange({
+          ...exitInterview,
+          redFlagsToAvoid: exitInterview.redFlagsToAvoid ? `${exitInterview.redFlagsToAvoid} ${spoken}` : spoken,
+        })} />
+      </div>
     </div>
   )
 }
@@ -351,30 +281,39 @@ function ExitInterviewSection({
 export function AthleteProfilePanel({
   engagementId,
   athleteName,
+  initialCurrentSchool,
   initialProfile,
   initialExitInterview,
 }: {
   engagementId: string
   athleteName: string
+  initialCurrentSchool: string | null
   initialProfile: AthleteProfile | null
   initialExitInterview: ExitInterview | null
 }) {
   const [profile, setProfile] = useState<AthleteProfile>(initialProfile ?? defaultProfile())
   const [exitInterview, setExitInterview] = useState<ExitInterview>(initialExitInterview ?? defaultExitInterview())
-  const [schoolName, setSchoolName] = useState('')
-  const [booklet, setBooklet] = useState<VisitQuestionBooklet | null>(null)
+  const [currentSchool, setCurrentSchool] = useState(initialCurrentSchool ?? '')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [savePending, startSave] = useTransition()
-  const [genPending, startGen] = useTransition()
   const [bankPending, startBank] = useTransition()
   const [bankMessage, setBankMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [, startSchoolSave] = useTransition()
 
-  function setPriority(factor: PriorityFactor, val: number) {
-    setProfile(p => ({ ...p, priority_ranking: { ...p.priority_ranking, [factor]: val } }))
+  const orderedFactors = [...PRIORITY_FACTORS].sort((a, b) => profile.priority_ranking[a] - profile.priority_ranking[b])
+
+  function handleReorderPriorities(newOrder: PriorityFactor[]) {
+    const priority_ranking = Object.fromEntries(newOrder.map((f, i) => [f, i + 1])) as Record<PriorityFactor, number>
+    setProfile(p => ({ ...p, priority_ranking }))
   }
 
-  function setDQ(key: DQKey, opt: 'a' | 'b' | 'c' | 'd', val: number) {
-    setProfile(p => ({ ...p, [key]: { ...p[key], [opt]: val } }))
+  function handleReorderDecision(key: DQKey, newOrder: DQOption[]) {
+    const answer = Object.fromEntries(newOrder.map((opt, i) => [opt, i + 1])) as AthleteProfile[DQKey]
+    setProfile(p => ({ ...p, [key]: answer }))
+  }
+
+  function handleCurrentSchoolBlur() {
+    startSchoolSave(async () => { await saveCurrentSchool(engagementId, currentSchool) })
   }
 
   function handleSave() {
@@ -401,20 +340,6 @@ export function AthleteProfilePanel({
     })
   }
 
-  function handleGenerate() {
-    if (!schoolName.trim()) { setMessage({ type: 'error', text: 'Enter a school name.' }); return }
-    setMessage(null)
-    setBooklet(null)
-    startGen(async () => {
-      const result = await generateVisitQuestionsAction(engagementId, schoolName.trim(), athleteName)
-      if (result.success && result.booklet) {
-        setBooklet(result.booklet)
-      } else {
-        setMessage({ type: 'error', text: result.error ?? 'Failed to generate questions.' })
-      }
-    })
-  }
-
   return (
     <div>
       {/* Header */}
@@ -425,9 +350,21 @@ export function AthleteProfilePanel({
         <h1 style={{ fontFamily: 'var(--display)', color: 'var(--navy)' }} className="text-[38px] font-medium tracking-[-0.01em] leading-[1.1] mb-2">
           Athlete Profile
         </h1>
-        <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[14px] leading-relaxed max-w-[520px]">
+        <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[14px] leading-relaxed max-w-[520px] mb-5">
           Rank your priorities and complete the decision profile. These answers drive the visit question guide — the higher a factor ranks, the harder we push on it during visits.
         </p>
+        <label htmlFor="current-school" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+          Current school
+        </label>
+        <input
+          id="current-school"
+          value={currentSchool}
+          onChange={e => setCurrentSchool(e.target.value)}
+          onBlur={handleCurrentSchoolBlur}
+          placeholder="e.g. Indiana University"
+          style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', maxWidth: 320, fontSize: 15 }}
+          className="px-3.5 py-2.5"
+        />
       </div>
 
       <div style={{ height: 1, background: 'var(--line)', marginBottom: 36, position: 'relative' }}>
@@ -469,28 +406,18 @@ export function AthleteProfilePanel({
           Part 1 — What matters most in your transfer?
         </p>
         <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mb-5">
-          Use ↑↓ to rank 1–9 (1 = most important)
+          Drag to reorder — top of the list is most important.
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {PRIORITY_FACTORS.map(factor => (
-            <div key={factor} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '12px 20px' }} className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span style={{ fontFamily: 'var(--mono)', color: 'var(--gold)', fontSize: 11, fontWeight: 700, minWidth: 16 }}>
-                  {profile.priority_ranking[factor]}
-                </span>
-                <span style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: 13 }}>
-                  {PRIORITY_FACTOR_LABELS[factor]}
-                </span>
-              </div>
-              <RankInput
-                value={profile.priority_ranking[factor]}
-                onChange={v => setPriority(factor, v)}
-                min={1}
-                max={9}
-              />
-            </div>
-          ))}
-        </div>
+        <DragRankList
+          items={orderedFactors}
+          getKey={f => f}
+          renderLabel={factor => (
+            <span style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: 13 }}>
+              {PRIORITY_FACTOR_LABELS[factor]}
+            </span>
+          )}
+          onReorder={handleReorderPriorities}
+        />
       </div>
 
       {/* Part 2: Decision Profile */}
@@ -499,36 +426,30 @@ export function AthleteProfilePanel({
           Part 2 — Decision Profile
         </p>
         <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mb-5">
-          Rank A–D within each question (1 = most like you)
+          Drag to reorder within each question — top is most like you.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {DECISION_QUESTIONS.map((dq, qi) => {
             const key = DQ_KEYS[qi]
+            const orderedOptions = [...DQ_OPTIONS].sort((a, b) => profile[key][a] - profile[key][b])
             return (
               <div key={key} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '20px 24px' }}>
                 <p style={{ fontFamily: 'var(--sans)', color: 'var(--navy)', fontWeight: 600 }} className="text-[13px] mb-4">
                   {dq.prompt}
                 </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(['a', 'b', 'c', 'd'] as const).map(opt => (
-                    <div key={opt} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span style={{ fontFamily: 'var(--mono)', color: 'var(--slate-soft)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
-                          {opt}
-                        </span>
-                        <span style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: 13 }}>
-                          {dq.options[opt]}
-                        </span>
-                      </div>
-                      <RankInput
-                        value={profile[key][opt]}
-                        onChange={v => setDQ(key, opt, v)}
-                        min={1}
-                        max={4}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <DragRankList
+                  items={orderedOptions}
+                  getKey={opt => opt}
+                  renderLabel={opt => (
+                    <span style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: 13 }}>
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--slate-soft)', fontWeight: 700, textTransform: 'uppercase', marginRight: 8 }}>
+                        {opt}
+                      </span>
+                      {dq.options[opt]}
+                    </span>
+                  )}
+                  onReorder={newOrder => handleReorderDecision(key, newOrder)}
+                />
               </div>
             )
           })}
@@ -539,7 +460,7 @@ export function AthleteProfilePanel({
         <div style={{ position: 'absolute', left: 0, top: -1, width: 48, height: 3, background: 'var(--gold)' }} />
       </div>
 
-      <ExitInterviewSection exitInterview={exitInterview} onChange={setExitInterview} />
+      <ExitInterviewSection exitInterview={exitInterview} onChange={setExitInterview} currentSchool={currentSchool} />
 
       {/* Save */}
       <div className="flex items-center gap-3 mb-6">
@@ -580,52 +501,6 @@ export function AthleteProfilePanel({
           </p>
         )}
       </div>
-
-      {/* Question Generator */}
-      <div style={{ height: 1, background: 'var(--line)', marginBottom: 32, position: 'relative' }}>
-        <div style={{ position: 'absolute', left: 0, top: -1, width: 48, height: 3, background: 'var(--gold)' }} />
-      </div>
-      <div className="mb-8">
-        <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold tracking-[0.08em] uppercase mb-1">
-          Generate Visit Questions
-        </p>
-        <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mb-5">
-          Enter a school name and the AI will generate a tailored question guide for that visit based on {athleteName}&apos;s profile.
-        </p>
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            value={schoolName}
-            onChange={e => setSchoolName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleGenerate()}
-            placeholder="e.g. University of Arkansas"
-            style={{
-              flex: 1, border: '1px solid var(--line)', background: 'var(--paper)',
-              color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none',
-            }}
-            className="px-3.5 py-2.5 text-[14px]"
-          />
-          <button
-            onClick={handleGenerate}
-            disabled={genPending}
-            style={{
-              background: genPending ? 'var(--slate)' : 'var(--navy)', color: 'var(--cream)',
-              fontFamily: 'var(--sans)', border: 'none', cursor: genPending ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-            className="px-5 py-2.5 text-[11px] font-semibold tracking-[0.08em] uppercase"
-          >
-            {genPending ? 'Generating…' : 'Generate questions'}
-          </button>
-        </div>
-        {genPending && (
-          <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mt-3">
-            Analyzing profile and building question guide — takes about 15 seconds.
-          </p>
-        )}
-      </div>
-
-      {booklet && <QuestionBookletDisplay booklet={booklet} />}
     </div>
   )
 }

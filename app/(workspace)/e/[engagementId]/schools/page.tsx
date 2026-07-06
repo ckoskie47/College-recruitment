@@ -21,12 +21,13 @@ export default async function SchoolsPage({
 
   const { data: eng } = await svc
     .from('engagements')
-    .select('id, exit_interview')
+    .select('id, client_name, exit_interview')
     .eq('id', engagementId)
     .single()
 
   if (!eng) redirect('/engagements')
 
+  const athleteName = eng.client_name ?? 'Athlete'
   const exitInterview = eng.exit_interview as unknown as ExitInterview | null
 
   const [{ data: vendors }, { data: meetings }, { data: redFlags }, { data: questions }] = await Promise.all([
@@ -173,6 +174,7 @@ export default async function SchoolsPage({
   return (
     <SchoolsPanel
       engagementId={engagementId}
+      athleteName={athleteName}
       schools={schools}
       exitInterviewFlags={exitInterviewFlags}
       exitInterviewAvoid={exitInterview?.redFlagsToAvoid ?? null}

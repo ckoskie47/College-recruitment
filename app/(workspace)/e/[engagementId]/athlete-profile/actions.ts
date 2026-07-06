@@ -27,6 +27,24 @@ export async function saveAthleteProfile(
   return { success: true }
 }
 
+export async function saveCurrentSchool(
+  engagementId: string,
+  currentSchool: string,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Unauthorized' }
+
+  const svc = createServiceClient()
+  const { error } = await svc
+    .from('engagements')
+    .update({ current_school: currentSchool.trim() || null })
+    .eq('id', engagementId)
+
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
 export async function saveExitInterview(
   engagementId: string,
   exitInterview: ExitInterview,

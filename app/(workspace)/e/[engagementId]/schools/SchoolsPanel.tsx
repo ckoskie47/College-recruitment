@@ -15,6 +15,9 @@ import {
 } from './constants'
 import { PRIORITY_FACTOR_LABELS } from '@/lib/ai/visit-question-generator'
 import type { SchoolResearch } from '@/lib/ai/school-research-analyzer'
+import type { VisitQuestionBooklet } from '@/lib/ai/visit-question-generator'
+import { generateVisitQuestionsAction } from '../athlete-profile/actions'
+import { QuestionBookletDisplay } from '@/components/recruiting/QuestionBookletDisplay'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -855,10 +858,55 @@ function OfferSection({ engagementId, vendorId, nilAmount, nilNotes, ptEstimate,
 }
 
 // ---------------------------------------------------------------------------
+// Visit questions
+// ---------------------------------------------------------------------------
+
+function VisitQuestionsSection({ engagementId, schoolName, athleteName }: {
+  engagementId: string; schoolName: string; athleteName: string
+}) {
+  const [booklet, setBooklet] = useState<VisitQuestionBooklet | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, start] = useTransition()
+
+  function handleGenerate() {
+    setError(null)
+    start(async () => {
+      const result = await generateVisitQuestionsAction(engagementId, schoolName, athleteName)
+      if (result.success && result.booklet) setBooklet(result.booklet)
+      else setError(result.error ?? 'Failed to generate questions.')
+    })
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+          Visit questions
+        </p>
+        <button onClick={handleGenerate} disabled={pending} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+          {pending ? 'Generating…' : booklet ? 'Regenerate' : '+ Generate for this visit'}
+        </button>
+      </div>
+      {pending && (
+        <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">
+          Building a tailored question guide for {schoolName} — takes about 15 seconds.
+        </p>
+      )}
+      {error && <p style={{ color: 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[12px]">{error}</p>}
+      {booklet && (
+        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '16px 18px', marginTop: 8 }}>
+          <QuestionBookletDisplay booklet={booklet} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // School Card
 // ---------------------------------------------------------------------------
 
-function SchoolCard({ school, engagementId }: { school: SchoolWithDetails; engagementId: string }) {
+function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithDetails; engagementId: string; athleteName: string }) {
   const [expanded, setExpanded] = useState(false)
   const [logging, setLogging] = useState(false)
   const [nextStep, setNextStep] = useState(school.metadata?.next_step ?? '')
@@ -989,6 +1037,7 @@ function SchoolCard({ school, engagementId }: { school: SchoolWithDetails; engag
           <RedFlagsSection engagementId={engagementId} vendorId={school.id} flags={school.redFlags} historicalFlags={school.historicalFlags} />
           <ResearchSection engagementId={engagementId} vendorId={school.id} schoolId={school.school_id} notes={school.researchNotes} structured={school.researchStructured} />
           <QuestionsSection engagementId={engagementId} questions={school.questions} />
+          <VisitQuestionsSection engagementId={engagementId} schoolName={school.name} athleteName={athleteName} />
 
           {!logging && (
             <button onClick={() => setLogging(true)} style={{ width: '100%', background: 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, letterSpacing: '0.08em', textTransform: 'uppercase' }} className="py-4 mb-4">
@@ -1015,8 +1064,9 @@ function SchoolCard({ school, engagementId }: { school: SchoolWithDetails; engag
 // Main Panel
 // ---------------------------------------------------------------------------
 
-export function SchoolsPanel({ engagementId, schools, exitInterviewFlags, exitInterviewAvoid }: {
+export function SchoolsPanel({ engagementId, athleteName, schools, exitInterviewFlags, exitInterviewAvoid }: {
   engagementId: string
+  athleteName: string
   schools: SchoolWithDetails[]
   exitInterviewFlags: RedFlagEntry[]
   exitInterviewAvoid: string | null
@@ -1115,7 +1165,7 @@ export function SchoolsPanel({ engagementId, schools, exitInterviewFlags, exitIn
             </p>
           </div>
         )}
-        {filtered.map(school => <SchoolCard key={school.id} school={school} engagementId={engagementId} />)}
+        {filtered.map(school => <SchoolCard key={school.id} school={school} engagementId={engagementId} athleteName={athleteName} />)}
       </div>
     </div>
   )

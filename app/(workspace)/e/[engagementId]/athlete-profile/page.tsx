@@ -17,7 +17,7 @@ export default async function AthleteProfilePage({
   const svc = createServiceClient()
   const { data: eng } = await svc
     .from('engagements')
-    .select('name, client_name, athlete_profile, exit_interview')
+    .select('name, client_name, current_school, athlete_profile, exit_interview')
     .eq('id', engagementId)
     .single()
 
@@ -31,6 +31,7 @@ export default async function AthleteProfilePage({
     <AthleteProfilePanel
       engagementId={engagementId}
       athleteName={athleteName}
+      initialCurrentSchool={eng.current_school}
       initialProfile={existingProfile}
       initialExitInterview={existingExitInterview}
     />

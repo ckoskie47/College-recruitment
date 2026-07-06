@@ -334,6 +334,7 @@ export type Database = {
           client_name: string | null
           created_at: string
           created_by: string | null
+          current_school: string | null
           decision_due_at: string | null
           description: string | null
           exit_interview: Json | null
@@ -350,6 +351,7 @@ export type Database = {
           client_name?: string | null
           created_at?: string
           created_by?: string | null
+          current_school?: string | null
           decision_due_at?: string | null
           description?: string | null
           exit_interview?: Json | null
@@ -366,6 +368,7 @@ export type Database = {
           client_name?: string | null
           created_at?: string
           created_by?: string | null
+          current_school?: string | null
           decision_due_at?: string | null
           description?: string | null
           exit_interview?: Json | null

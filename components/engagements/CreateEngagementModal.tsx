@@ -96,6 +96,21 @@ export function CreateEngagementModal({
             />
           </div>
 
+          <div className="mb-5">
+            <label htmlFor="eng-current-school" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              Current school
+              <span style={{ color: 'var(--slate-soft)' }} className="ml-2 normal-case font-normal tracking-normal">optional</span>
+            </label>
+            <input
+              id="eng-current-school" name="current_school" type="text"
+              placeholder="Indiana University"
+              style={inputStyle}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--navy)' }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--line)' }}
+              className="px-4 py-3"
+            />
+          </div>
+
           {orgOptions.length > 0 && (
             <div className="mb-5">
               <label htmlFor="eng-org" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">

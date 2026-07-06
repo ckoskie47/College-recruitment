@@ -16,6 +16,7 @@ export async function createEngagement(
 
   const name = (formData.get('name') as string | null)?.trim()
   const athleteName = (formData.get('athlete_name') as string | null)?.trim() || null
+  const currentSchool = (formData.get('current_school') as string | null)?.trim() || null
   const decisionDue = (formData.get('decision_due_at') as string | null)?.trim() || null
   const explicitOrgId = (formData.get('organization_id') as string | null)?.trim() || null
 
@@ -73,6 +74,7 @@ export async function createEngagement(
       organization_id: orgId,
       name,
       client_name: athleteName,
+      current_school: currentSchool,
       vendor_type: 'college_recruitment',
       decision_due_at: decisionDue || null,
       created_by: user.id,
