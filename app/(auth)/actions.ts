@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { resend, FROM_ADDRESS } from '@/lib/email/resend'
+import { getResendClient, FROM_ADDRESS } from '@/lib/email/resend'
 import { renderMagicLinkEmail } from '@/lib/email/templates/magicLink'
 import { redirect } from 'next/navigation'
 
@@ -69,7 +69,7 @@ export async function sendMagicLinkEmail(
 
   const { subject, html, text } = renderMagicLinkEmail({ signInUrl })
 
-  const { error: emailError } = await resend.emails.send({
+  const { error: emailError } = await getResendClient().emails.send({
     from: FROM_ADDRESS,
     to: email,
     subject,
