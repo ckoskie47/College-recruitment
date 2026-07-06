@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
-  saveTranscript,
+  saveTranscript, autoResearchSchool,
 } from './actions'
 import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
@@ -639,6 +639,7 @@ function ResearchSection({ engagementId, vendorId, schoolId, notes, structured }
   const [rawNotes, setRawNotes] = useState(notes ?? '')
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
+  const [autoPending, startAuto] = useTransition()
 
   function handleAnalyze() {
     if (!schoolId) return
@@ -649,10 +650,30 @@ function ResearchSection({ engagementId, vendorId, schoolId, notes, structured }
     })
   }
 
+  function handleAutoResearch() {
+    if (!schoolId) return
+    setError(null)
+    startAuto(async () => {
+      const r = await autoResearchSchool(engagementId, vendorId, schoolId)
+      if (r.success && r.summary) setRawNotes(r.summary)
+      if (!r.success) setError(r.error ?? 'Failed to auto-research.')
+    })
+  }
+
   return (
     <div className="mb-4">
       <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-2">
         Research
+      </p>
+      <button
+        onClick={handleAutoResearch} disabled={autoPending}
+        style={{ background: 'transparent', color: 'var(--navy)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}
+        className="px-4 py-2 mb-2"
+      >
+        {autoPending ? 'Searching the web…' : '🔎 Auto-research with AI'}
+      </button>
+      <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] mb-2">
+        Uses live web search — always double-check names, records, and dates before relying on them.
       </p>
       <textarea
         value={rawNotes} onChange={e => setRawNotes(e.target.value)}
@@ -1003,7 +1024,9 @@ export function SchoolsPanel({ engagementId, schools, exitInterviewFlags, exitIn
   const [showAdd, setShowAdd] = useState(schools.length === 0)
   const [filter, setFilter] = useState<'all' | PipelineStatus>('all')
 
-  const filtered = filter === 'all' ? schools : schools.filter(s => s.pipeline_status === filter)
+  const filtered = (filter === 'all' ? schools : schools.filter(s => s.pipeline_status === filter))
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   const activeCount = schools.filter(s => s.pipeline_status === 'active').length
   const committedCount = schools.filter(s => s.pipeline_status === 'committed').length

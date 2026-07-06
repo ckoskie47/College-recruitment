@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { revalidatePath } from 'next/cache'
 import type { Json } from '@/lib/supabase/types'
 import { analyzeSchoolResearch, type SchoolResearch } from '@/lib/ai/school-research-analyzer'
+import { researchSchoolViaWeb } from '@/lib/ai/school-web-researcher'
 import {
   COMM_TYPES, STAGE_ORDER, STAGE_FOR_COMM,
   type PipelineStage, type PipelineStatus, type CommType, type EnergyLevel,
@@ -313,6 +314,33 @@ export async function saveSchoolResearch(
 
   revalidatePath(`/e/${engagementId}/schools`)
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-research a school via live web search (head coach, hitting coach,
+// last season's record, postseason result), then run it through the same
+// structuring/red-flag pipeline as pasted research notes above.
+// ---------------------------------------------------------------------------
+
+export async function autoResearchSchool(
+  engagementId: string,
+  vendorId: string,
+  schoolId: string,
+): Promise<{ success: boolean; error?: string; summary?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+
+  const { data: vendor } = await ctx.svc.from('vendors').select('name').eq('id', vendorId).single()
+
+  let summary: string
+  try {
+    summary = await researchSchoolViaWeb(vendor?.name ?? 'this school')
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to research via web search.' }
+  }
+
+  const result = await saveSchoolResearch(engagementId, vendorId, schoolId, summary)
+  return { ...result, summary }
 }
 
 // ---------------------------------------------------------------------------
