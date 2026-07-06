@@ -1,0 +1,108 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ============================================================
+   ELEVATE ADVISOR GROUP — Brand Tokens
+   ============================================================ */
+:root {
+  /* Primary brand — Elevate blue */
+  --navy:        #0F3A75;
+  --navy-deep:   #081E48;
+  --slate:       #2A6AB5;
+  --slate-soft:  #5A96CC;
+  --gold:        #1A5FAD;
+  --gold-soft:   #4A85C8;
+
+  /* Surfaces */
+  --cream:       #E8F2FC;
+  --cream-deep:  #D4E8F8;
+  --paper:       #F5F9FE;
+  --white:       #FFFFFF;
+
+  /* Text */
+  --ink:         #1A1F2E;
+  --ink-soft:    #4A5468;
+
+  /* Lines */
+  --line:        #C5DCEF;
+  --line-soft:   #DAE9F8;
+
+  /* Status */
+  --red:         #9E2A2B;
+  --red-bg:      #F4D9D7;
+  --amber:       #B47E11;
+  --amber-bg:    #FBEFCF;
+  --green:       #2F5D3A;
+  --green-bg:    #DFE9DF;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 2px rgba(15, 58, 117, 0.08);
+  --shadow-md:   0 4px 16px rgba(15, 58, 117, 0.10), 0 1px 2px rgba(15, 58, 117, 0.06);
+  --shadow-lg:   0 12px 40px rgba(15, 58, 117, 0.14), 0 2px 8px rgba(15, 58, 117, 0.06);
+
+  /* Typography */
+  --display: var(--font-manrope), system-ui, sans-serif;
+  --sans:    var(--font-manrope), system-ui, sans-serif;
+  --mono:    var(--font-jetbrains-mono), 'SF Mono', Menlo, monospace;
+}
+
+/* ============================================================
+   Tailwind v4 Theme — maps CSS vars to Tailwind utilities
+   ============================================================ */
+@theme inline {
+  /* Colors */
+  --color-navy:        var(--navy);
+  --color-navy-deep:   var(--navy-deep);
+  --color-slate:       var(--slate);
+  --color-slate-soft:  var(--slate-soft);
+  --color-gold:        var(--gold);
+  --color-gold-soft:   var(--gold-soft);
+  --color-cream:       var(--cream);
+  --color-cream-deep:  var(--cream-deep);
+  --color-paper:       var(--paper);
+  --color-ink:         var(--ink);
+  --color-ink-soft:    var(--ink-soft);
+  --color-line:        var(--line);
+  --color-line-soft:   var(--line-soft);
+  --color-status-red:  var(--red);
+  --color-red-bg:      var(--red-bg);
+  --color-status-amber: var(--amber);
+  --color-amber-bg:    var(--amber-bg);
+  --color-status-green: var(--green);
+  --color-green-bg:    var(--green-bg);
+
+  /* Fonts */
+  --font-display: var(--display);
+  --font-sans:    var(--sans);
+  --font-mono:    var(--mono);
+}
+
+/* ============================================================
+   Base Styles
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
