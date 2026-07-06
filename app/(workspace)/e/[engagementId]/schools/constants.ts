@@ -10,8 +10,17 @@ export type RedFlagSource = Database['public']['Enums']['red_flag_source']
 export type QuestionStage = Database['public']['Enums']['question_stage']
 export type QuestionSource = Database['public']['Enums']['question_source']
 export type PriorityFactor = Database['public']['Enums']['priority_factor']
+export type TranscriptSource = Database['public']['Enums']['transcript_source']
 
 export type QuestionAskedInput = { question: string; answer: string; redFlagIdentified: boolean }
+
+export const TRANSCRIPT_SOURCE_LABELS: Record<TranscriptSource, string> = {
+  otter:                    'Otter.ai',
+  manual_paste:             'Pasted text',
+  file_upload:              'Uploaded file',
+  recording_transcription:  'Recording transcription',
+  email_followup:           'Email follow-up',
+}
 
 export const RED_FLAG_SEVERITIES: RedFlagSeverity[] = ['low', 'medium', 'high']
 

@@ -8,7 +8,7 @@ import { analyzeSchoolResearch, type SchoolResearch } from '@/lib/ai/school-rese
 import {
   COMM_TYPES, STAGE_ORDER, STAGE_FOR_COMM,
   type PipelineStage, type PipelineStatus, type CommType, type EnergyLevel,
-  type RedFlagSeverity, type RedFlagStatus, type QuestionAskedInput,
+  type RedFlagSeverity, type RedFlagStatus, type QuestionAskedInput, type TranscriptSource,
 } from './constants'
 
 // ---------------------------------------------------------------------------
@@ -330,6 +330,32 @@ export async function markQuestionAsked(
     status: 'asked',
     coach_answer: coachAnswer.trim() || null,
   }).eq('id', questionId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Call transcripts — pasted text or a text-based file (Otter/Zoom export)
+// read client-side, attached to an already-logged communication.
+// ---------------------------------------------------------------------------
+
+export async function saveTranscript(
+  engagementId: string,
+  meetingId: string,
+  rawText: string,
+  source: TranscriptSource,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+  if (!rawText.trim()) return { success: false, error: 'Paste or upload a transcript first.' }
+
+  const { error } = await ctx.svc.from('meeting_transcripts').insert({
+    meeting_id: meetingId,
+    raw_text: rawText,
+    source,
+    uploaded_by: ctx.user.id,
+  })
   if (error) return { success: false, error: error.message }
   revalidatePath(`/e/${engagementId}/schools`)
   return { success: true }

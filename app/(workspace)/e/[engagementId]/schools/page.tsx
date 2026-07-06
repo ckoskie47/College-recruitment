@@ -48,6 +48,20 @@ export default async function SchoolsPage({
       .order('sort_order', { ascending: true }),
   ])
 
+  const meetingIds = (meetings ?? []).map(m => m.id)
+  const transcriptsByMeeting: Record<string, SchoolWithDetails['communications'][number]['transcript']> = {}
+  if (meetingIds.length > 0) {
+    const { data: transcripts } = await svc
+      .from('meeting_transcripts')
+      .select('id, meeting_id, raw_text, source, uploaded_at')
+      .in('meeting_id', meetingIds)
+      .order('uploaded_at', { ascending: false })
+    for (const t of transcripts ?? []) {
+      if (transcriptsByMeeting[t.meeting_id]) continue // keep only the most recent per meeting
+      transcriptsByMeeting[t.meeting_id] = { id: t.id, rawText: t.raw_text ?? '', source: t.source, uploadedAt: t.uploaded_at }
+    }
+  }
+
   const schoolIds = [...new Set((vendors ?? []).map(v => v.school_id).filter((id): id is string => !!id))]
 
   const schoolsById = new Map<string, { research_notes: string | null; research_structured: SchoolResearch | null }>()
@@ -100,6 +114,7 @@ export default async function SchoolsPage({
       who_initiated: m.who_initiated,
       notes: m.notes,
       attendees: Array.isArray(m.attendees) ? m.attendees as string[] : null,
+      transcript: transcriptsByMeeting[m.id] ?? null,
     })
   }
 

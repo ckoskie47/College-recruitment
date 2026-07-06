@@ -4,12 +4,14 @@ import { useState, useTransition } from 'react'
 import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
+  saveTranscript,
 } from './actions'
 import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
+  TRANSCRIPT_SOURCE_LABELS,
   type PipelineStage, type PipelineStatus, type CommType, type EnergyLevel,
   type RedFlagSeverity, type RedFlagStatus, type RedFlagSource, type QuestionStage,
-  type QuestionSource, type PriorityFactor, type QuestionAskedInput,
+  type QuestionSource, type PriorityFactor, type QuestionAskedInput, type TranscriptSource,
 } from './constants'
 import { PRIORITY_FACTOR_LABELS } from '@/lib/ai/visit-question-generator'
 import type { SchoolResearch } from '@/lib/ai/school-research-analyzer'
@@ -17,6 +19,13 @@ import type { SchoolResearch } from '@/lib/ai/school-research-analyzer'
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export type TranscriptEntry = {
+  id: string
+  rawText: string
+  source: TranscriptSource
+  uploadedAt: string
+}
 
 export type CommunicationEntry = {
   id: string
@@ -32,6 +41,7 @@ export type CommunicationEntry = {
   who_initiated: string | null
   notes: string | null
   attendees: string[] | null
+  transcript: TranscriptEntry | null
 }
 
 export type RedFlagEntry = {
@@ -202,14 +212,15 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
   const [commType, setCommType] = useState<CommType>('call_1')
   const [date, setDate] = useState(today)
   const [duration, setDuration] = useState('')
+  const [notes, setNotes] = useState('')
+  const [participants, setParticipants] = useState<string[]>(['Caleb'])
+  const [showMore, setShowMore] = useState(false)
   const [whoInitiated, setWhoInitiated] = useState('')
   const [topics, setTopics] = useState('')
   const [keyPoints, setKeyPoints] = useState('')
   const [questionsAsked, setQuestionsAsked] = useState<QuestionAskedInput[]>([])
   const [athleteTakeaway, setAthleteTakeaway] = useState('')
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel | ''>('')
-  const [notes, setNotes] = useState('')
-  const [participants, setParticipants] = useState<string[]>(['Caleb'])
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
@@ -231,6 +242,7 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
   }
 
   function handle() {
+    if (!notes.trim()) { setError('Add a note about the call.'); return }
     setError(null)
     start(async () => {
       const r = await logInteraction(engagementId, vendorId, {
@@ -256,57 +268,20 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
           </select>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} className="px-3 py-3" />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <input type="number" min="0" value={duration} onChange={e => setDuration(e.target.value)} placeholder="Duration (min)" style={inputStyle} className="px-3 py-3" />
-          <input value={whoInitiated} onChange={e => setWhoInitiated(e.target.value)} placeholder="Who called (name/role)" style={inputStyle} className="px-3 py-3" />
-        </div>
+        <input type="number" min="0" value={duration} onChange={e => setDuration(e.target.value)} placeholder="Duration (min) — optional" style={inputStyle} className="px-3 py-3" />
 
-        <textarea value={topics} onChange={e => setTopics(e.target.value)} placeholder={'Topics discussed (one per line)'} rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
-        <textarea value={keyPoints} onChange={e => setKeyPoints(e.target.value)} placeholder={'Key points (one per line) — e.g. "You\'d start day 1 if you earn it"'} rows={3} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
-
-        {/* Questions asked */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
-              Questions asked
-            </p>
-            <button type="button" onClick={addQuestionRow} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
-              + Add
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {questionsAsked.map((q, i) => (
-              <div key={i} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '10px 12px' }}>
-                <input
-                  value={q.question} onChange={e => updateQuestionRow(i, { question: e.target.value })}
-                  placeholder="Question asked" style={{ ...inputStyle, marginBottom: 6 }} className="px-3 py-2 text-[13px]"
-                />
-                <input
-                  value={q.answer} onChange={e => updateQuestionRow(i, { answer: e.target.value })}
-                  placeholder="Their answer" style={{ ...inputStyle, marginBottom: 6 }} className="px-3 py-2 text-[13px]"
-                />
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2" style={{ fontFamily: 'var(--sans)', fontSize: 12, color: 'var(--ink-soft)' }}>
-                    <input type="checkbox" checked={q.redFlagIdentified} onChange={e => updateQuestionRow(i, { redFlagIdentified: e.target.checked })} />
-                    Red flag in this answer
-                  </label>
-                  <button type="button" onClick={() => removeQuestionRow(i)} style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+            Notes
+          </label>
+          <textarea
+            value={notes} onChange={e => setNotes(e.target.value)} autoFocus
+            placeholder="What was said, what to follow up on…"
+            rows={5}
+            style={{ ...inputStyle, resize: 'vertical', fontSize: 15 }}
+            className="px-4 py-3"
+          />
         </div>
-
-        <textarea value={athleteTakeaway} onChange={e => setAthleteTakeaway(e.target.value)} placeholder="Your takeaway from this call" rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
-
-        <select value={energyLevel} onChange={e => setEnergyLevel(e.target.value as EnergyLevel)} style={inputStyle} className="px-3 py-3">
-          <option value="">Energy level after this call…</option>
-          {ENERGY_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-        </select>
-
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any other notes" rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
 
         <div>
           <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-2">
@@ -329,6 +304,63 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
           </div>
         </div>
 
+        <button
+          type="button" onClick={() => setShowMore(v => !v)}
+          style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700, textAlign: 'left' }}
+        >
+          {showMore ? '− Hide extra detail' : '+ Add more detail (topics, questions asked, takeaway…)'}
+        </button>
+
+        {showMore && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--paper)', border: '1px solid var(--line)', padding: 12 }}>
+            <input value={whoInitiated} onChange={e => setWhoInitiated(e.target.value)} placeholder="Who called (name/role)" style={inputStyle} className="px-3 py-3" />
+            <textarea value={topics} onChange={e => setTopics(e.target.value)} placeholder={'Topics discussed (one per line)'} rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
+            <textarea value={keyPoints} onChange={e => setKeyPoints(e.target.value)} placeholder={'Key points (one per line) — e.g. "You\'d start day 1 if you earn it"'} rows={3} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
+
+            {/* Questions asked */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+                  Questions asked
+                </p>
+                <button type="button" onClick={addQuestionRow} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+                  + Add
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {questionsAsked.map((q, i) => (
+                  <div key={i} style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '10px 12px' }}>
+                    <input
+                      value={q.question} onChange={e => updateQuestionRow(i, { question: e.target.value })}
+                      placeholder="Question asked" style={{ ...inputStyle, marginBottom: 6 }} className="px-3 py-2 text-[13px]"
+                    />
+                    <input
+                      value={q.answer} onChange={e => updateQuestionRow(i, { answer: e.target.value })}
+                      placeholder="Their answer" style={{ ...inputStyle, marginBottom: 6 }} className="px-3 py-2 text-[13px]"
+                    />
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2" style={{ fontFamily: 'var(--sans)', fontSize: 12, color: 'var(--ink-soft)' }}>
+                        <input type="checkbox" checked={q.redFlagIdentified} onChange={e => updateQuestionRow(i, { redFlagIdentified: e.target.checked })} />
+                        Red flag in this answer
+                      </label>
+                      <button type="button" onClick={() => removeQuestionRow(i)} style={{ color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <textarea value={athleteTakeaway} onChange={e => setAthleteTakeaway(e.target.value)} placeholder="Your takeaway from this call" rows={2} style={{ ...inputStyle, resize: 'vertical' }} className="px-4 py-3" />
+
+            <select value={energyLevel} onChange={e => setEnergyLevel(e.target.value as EnergyLevel)} style={inputStyle} className="px-3 py-3">
+              <option value="">Energy level after this call…</option>
+              {ENERGY_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+            </select>
+          </div>
+        )}
+
         {error && <p style={{ color: 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[13px]">{error}</p>}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={handle} disabled={pending}
@@ -350,9 +382,93 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
 // Communication history entry
 // ---------------------------------------------------------------------------
 
-function CommunicationEntryView({ entry }: { entry: CommunicationEntry }) {
+function TranscriptSection({ engagementId, meetingId, transcript }: {
+  engagementId: string; meetingId: string; transcript: TranscriptEntry | null
+}) {
+  const [adding, setAdding] = useState(false)
+  const [viewing, setViewing] = useState(false)
+  const [text, setText] = useState('')
+  const [source, setSource] = useState<TranscriptSource>('manual_paste')
+  const [error, setError] = useState<string | null>(null)
+  const [pending, start] = useTransition()
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setText(String(reader.result ?? ''))
+      setSource('file_upload')
+    }
+    reader.readAsText(file)
+  }
+
+  function handleSave() {
+    if (!text.trim()) { setError('Paste or upload a transcript first.'); return }
+    setError(null)
+    start(async () => {
+      const r = await saveTranscript(engagementId, meetingId, text, source)
+      if (r.success) { setAdding(false); setText('') }
+      else setError(r.error ?? 'Failed to save transcript.')
+    })
+  }
+
+  if (transcript && !adding) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px]">
+            Transcript — {TRANSCRIPT_SOURCE_LABELS[transcript.source]}
+          </p>
+          <button onClick={() => setViewing(v => !v)} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+            {viewing ? 'Hide' : 'View'}
+          </button>
+        </div>
+        {viewing && (
+          <pre style={{ background: 'var(--cream)', border: '1px solid var(--line)', padding: '10px 12px', whiteSpace: 'pre-wrap', fontFamily: 'var(--sans)', color: 'var(--ink)', maxHeight: 300, overflowY: 'auto', margin: 0 }} className="text-[12px]">
+            {transcript.rawText}
+          </pre>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {!adding ? (
+        <button type="button" onClick={() => setAdding(true)} style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+          + Add transcript
+        </button>
+      ) : (
+        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
+            Upload a file (.txt, .vtt, .srt) or paste below
+          </p>
+          <input type="file" accept=".txt,.vtt,.srt,.md" onChange={handleFile} style={{ fontFamily: 'var(--sans)', fontSize: 12 }} />
+          <textarea
+            value={text} onChange={e => { setText(e.target.value); setSource('manual_paste') }}
+            placeholder="Paste the call/recording transcript here…"
+            rows={5}
+            style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 13, resize: 'vertical' }}
+            className="px-3 py-2"
+          />
+          {error && <p style={{ color: 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[12px]">{error}</p>}
+          <div className="flex items-center gap-2">
+            <button onClick={handleSave} disabled={pending} style={{ background: 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700 }} className="px-4 py-2">
+              {pending ? 'Saving…' : 'Save transcript'}
+            </button>
+            <button onClick={() => { setAdding(false); setText(''); setError(null) }} style={{ background: 'transparent', color: 'var(--slate-soft)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11 }} className="px-3 py-2">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CommunicationEntryView({ engagementId, entry }: { engagementId: string; entry: CommunicationEntry }) {
   const [expanded, setExpanded] = useState(false)
-  const hasDetail = entry.topics.length > 0 || entry.key_points.length > 0 || entry.questions_asked.length > 0 || entry.athlete_takeaway || entry.notes
 
   return (
     <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '12px 16px', borderRadius: 3 }}>
@@ -366,13 +482,17 @@ function CommunicationEntryView({ entry }: { entry: CommunicationEntry }) {
             {entry.who_initiated && <> · {entry.who_initiated}</>}
             {entry.attendees && entry.attendees.length > 0 && <> · {entry.attendees.join(', ')}</>}
             {entry.energy_level && <> · {ENERGY_LEVELS.find(l => l.value === entry.energy_level)?.label}</>}
+            {entry.transcript && <> · 📄 transcript</>}
           </p>
+          {entry.notes && (
+            <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)', whiteSpace: 'pre-wrap' }} className="text-[13px] mt-2">
+              {entry.notes}
+            </p>
+          )}
         </div>
-        {hasDetail && (
-          <button onClick={() => setExpanded(v => !v)} style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
-            {expanded ? 'Hide' : 'Details'}
-          </button>
-        )}
+        <button onClick={() => setExpanded(v => !v)} style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {expanded ? 'Hide' : 'Details'}
+        </button>
       </div>
       {expanded && (
         <div style={{ background: 'var(--cream)', borderRadius: 3, padding: '12px 14px', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -412,12 +532,7 @@ function CommunicationEntryView({ entry }: { entry: CommunicationEntry }) {
               <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px]">{entry.athlete_takeaway}</p>
             </div>
           )}
-          {entry.notes && (
-            <div>
-              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Notes</p>
-              <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)', whiteSpace: 'pre-wrap' }} className="text-[13px]">{entry.notes}</p>
-            </div>
-          )}
+          <TranscriptSection engagementId={engagementId} meetingId={entry.id} transcript={entry.transcript} />
         </div>
       )}
     </div>
@@ -866,7 +981,7 @@ function SchoolCard({ school, engagementId }: { school: SchoolWithDetails; engag
               <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
                 Communication history
               </p>
-              {school.communications.map(c => <CommunicationEntryView key={c.id} entry={c} />)}
+              {school.communications.map(c => <CommunicationEntryView key={c.id} engagementId={engagementId} entry={c} />)}
             </div>
           )}
         </div>
