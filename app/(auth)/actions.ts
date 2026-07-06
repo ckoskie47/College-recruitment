@@ -69,15 +69,19 @@ export async function sendMagicLinkEmail(
 
   const { subject, html, text } = renderMagicLinkEmail({ signInUrl })
 
-  const { error: emailError } = await getResendClient().emails.send({
-    from: FROM_ADDRESS,
-    to: email,
-    subject,
-    html,
-    text,
-  })
+  try {
+    const { error: emailError } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to: email,
+      subject,
+      html,
+      text,
+    })
 
-  if (emailError) return { error: emailError.message }
+    if (emailError) return { error: emailError.message }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to send sign-in email.' }
+  }
 
   return { sent: true }
 }

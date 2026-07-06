@@ -90,15 +90,19 @@ export async function sendOrgInvite({
     invitedByEmail: invitedByEmail ?? undefined,
   })
 
-  const { error: emailError } = await getResendClient().emails.send({
-    from: FROM_ADDRESS,
-    to: email,
-    subject,
-    html,
-    text,
-  })
+  try {
+    const { error: emailError } = await getResendClient().emails.send({
+      from: FROM_ADDRESS,
+      to: email,
+      subject,
+      html,
+      text,
+    })
 
-  if (emailError) return { success: false, error: emailError.message }
+    if (emailError) return { success: false, error: emailError.message }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to send invite email.' }
+  }
 
   return { success: true }
 }
