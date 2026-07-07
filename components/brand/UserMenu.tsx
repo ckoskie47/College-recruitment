@@ -42,7 +42,7 @@ export function UserMenu({ email, isSuperAdmin = false }: UserMenuProps) {
           fontSize: 12,
         }}
       >
-        <span>{email}</span>
+        <span className="max-w-[110px] sm:max-w-none truncate">{email}</span>
         <ChevronDown
           size={14}
           strokeWidth={1.6}

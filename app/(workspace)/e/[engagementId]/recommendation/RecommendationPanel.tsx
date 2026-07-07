@@ -162,17 +162,17 @@ export function RecommendationPanel({
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {top5.map(({ factor }) => (
-                  <div key={factor} className="flex items-center justify-between gap-3">
+                  <div key={factor} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <span style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[13px]">{PRIORITY_FACTOR_LABELS[factor]}</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {[1, 2, 3, 4, 5].map(n => (
                         <button
                           key={n}
                           onClick={() => setScore(id, factor, n)}
                           style={{
-                            width: 26, height: 26,
+                            width: 34, height: 34, minWidth: 34,
                             background: (localScores[id]?.[factor] ?? 0) >= n ? 'var(--gold)' : 'var(--paper)',
-                            border: '1px solid var(--line)', color: 'var(--navy)', fontFamily: 'var(--mono)', fontSize: 11, cursor: 'pointer',
+                            border: '1px solid var(--line)', color: 'var(--navy)', fontFamily: 'var(--mono)', fontSize: 12, cursor: 'pointer',
                           }}
                         >
                           {n}
@@ -189,8 +189,8 @@ export function RecommendationPanel({
 
       {/* Comparison table */}
       {compared.length > 0 && (
-        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', overflow: 'hidden', marginBottom: 24 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--line)', marginBottom: 24 }} className="overflow-x-auto">
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
             <thead>
               <tr style={{ background: 'var(--cream)' }}>
                 <th style={{ textAlign: 'left', padding: '10px 16px', fontFamily: 'var(--sans)', fontSize: 11, color: 'var(--slate-soft)', textTransform: 'uppercase' }}>School</th>

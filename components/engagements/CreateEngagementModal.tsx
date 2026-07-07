@@ -47,8 +47,10 @@ export function CreateEngagementModal({
           zIndex: 50, background: 'var(--white)',
           border: '1px solid var(--line)',
           boxShadow: '0 24px 64px rgba(8,26,46,0.18)',
-          width: '100%', maxWidth: 500, padding: '40px 40px 36px',
+          width: 'calc(100% - 32px)', maxWidth: 500,
+          maxHeight: '90vh', overflowY: 'auto',
         }}
+        className="px-6 py-8 sm:px-10 sm:py-9"
       >
         <div className="flex items-start justify-between mb-8">
           <div>

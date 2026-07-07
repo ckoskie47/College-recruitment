@@ -18,26 +18,14 @@ export default async function EngagementLayout({
     .single() as { data: { name: string; client_name: string | null } | null }
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '260px 1fr',
-        minHeight: 'calc(100vh - 65px)',
-      }}
-    >
+    <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] md:min-h-[calc(100vh-65px)]">
       <Sidebar
         engagementId={engagementId}
         engagementName={eng?.name}
         athleteName={eng?.client_name ?? undefined}
       />
-      <main
-        style={{
-          background: 'var(--paper)',
-          height: 'calc(100vh - 65px)',
-          overflowY: 'auto',
-        }}
-      >
-        <div style={{ maxWidth: 720, padding: '40px 32px 80px' }}>
+      <main className="md:h-[calc(100vh-65px)] md:overflow-y-auto" style={{ background: 'var(--paper)' }}>
+        <div style={{ maxWidth: 720 }} className="px-4 py-8 sm:px-8 sm:py-10 sm:pb-20">
           {children}
         </div>
       </main>
