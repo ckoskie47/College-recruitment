@@ -1,6 +1,7 @@
 import { getAnthropicClient, ANALYSIS_MODEL } from './client'
 import {
   EXIT_REASON_LABELS,
+  formatBioLine,
   type AthleteProfile,
   type ExitInterview,
   type PriorityFactor,
@@ -148,9 +149,10 @@ export async function generateQuestionBank(
   athleteName: string,
 ): Promise<GeneratedQuestion[]> {
   const priorities = sortedPriorityLabels(profile.priority_ranking)
+  const bioLine = formatBioLine(profile.bio)
 
   const summary = `
-ATHLETE: ${athleteName}
+ATHLETE: ${athleteName}${bioLine ? ` (${bioLine})` : ''}
 
 PRIORITY RANKING (1 = most important):
 ${priorities.map((p, i) => `  ${i + 1}. ${p}`).join('\n')}

@@ -5,8 +5,8 @@ import {
   saveAthleteProfile, inviteAthlete, inviteAdvisor,
   saveExitInterview, saveCurrentSchool, generateQuestionBankAction,
 } from './actions'
-import type { AthleteProfile, PriorityFactor, ExitInterview, ExitReason } from '@/lib/ai/visit-question-generator'
-import { PRIORITY_FACTOR_LABELS, EXIT_REASON_LABELS, EXIT_FOLLOWUPS } from '@/lib/ai/visit-question-generator'
+import type { AthleteProfile, PriorityFactor, ExitInterview, ExitReason, AthleteBio, SchoolYear } from '@/lib/ai/visit-question-generator'
+import { PRIORITY_FACTOR_LABELS, EXIT_REASON_LABELS, EXIT_FOLLOWUPS, SCHOOL_YEAR_LABELS } from '@/lib/ai/visit-question-generator'
 import { DragRankList } from '@/components/recruiting/DragRankList'
 import { MicButton } from '@/components/recruiting/MicButton'
 
@@ -78,12 +78,17 @@ function defaultExitInterview(): ExitInterview {
   return { reasons: [], details: {}, redFlagsToAvoid: '' }
 }
 
+function defaultBio(): AthleteBio {
+  return { age: '', schoolYear: '', sex: '', height: '', weight: '', sport: 'Baseball', position: '' }
+}
+
 function defaultProfile(): AthleteProfile {
   const priority_ranking = Object.fromEntries(
     PRIORITY_FACTORS.map((f, i) => [f, i + 1])
   ) as Record<PriorityFactor, number>
   const dq = { a: 1, b: 2, c: 3, d: 4 }
   return {
+    bio: defaultBio(),
     priority_ranking,
     q1_portal_reason: { ...dq },
     q2_goal_2027: { ...dq },
@@ -316,6 +321,12 @@ export function AthleteProfilePanel({
     startSchoolSave(async () => { await saveCurrentSchool(engagementId, currentSchool) })
   }
 
+  const bio = profile.bio ?? defaultBio()
+
+  function setBioField<K extends keyof AthleteBio>(key: K, value: AthleteBio[K]) {
+    setProfile(p => ({ ...p, bio: { ...(p.bio ?? defaultBio()), [key]: value } }))
+  }
+
   function handleSave() {
     setMessage(null)
     startSave(async () => {
@@ -365,6 +376,103 @@ export function AthleteProfilePanel({
           style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', maxWidth: 320, fontSize: 15 }}
           className="px-3.5 py-2.5"
         />
+      </div>
+
+      <div style={{ height: 1, background: 'var(--line)', marginBottom: 36, position: 'relative' }}>
+        <div style={{ position: 'absolute', left: 0, top: -1, width: 48, height: 3, background: 'var(--gold)' }} />
+      </div>
+
+      {/* Athlete Info */}
+      <div className="mb-10">
+        <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold tracking-[0.08em] uppercase mb-5">
+          Athlete Info
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div>
+            <label htmlFor="bio-sport" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              Sport
+            </label>
+            <input
+              id="bio-sport" value={bio.sport} onChange={e => setBioField('sport', e.target.value)}
+              placeholder="Baseball"
+              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 15 }}
+              className="px-3.5 py-2.5"
+            />
+          </div>
+          <div>
+            <label htmlFor="bio-position" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              Position
+            </label>
+            <input
+              id="bio-position" value={bio.position} onChange={e => setBioField('position', e.target.value)}
+              placeholder="Center Field"
+              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 15 }}
+              className="px-3.5 py-2.5"
+            />
+          </div>
+          <div>
+            <label htmlFor="bio-year" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              School year
+            </label>
+            <select
+              id="bio-year" value={bio.schoolYear} onChange={e => setBioField('schoolYear', e.target.value as SchoolYear | '')}
+              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 15, appearance: 'none' }}
+              className="px-3.5 py-2.5"
+            >
+              <option value="">—</option>
+              {(Object.keys(SCHOOL_YEAR_LABELS) as SchoolYear[]).map(y => (
+                <option key={y} value={y}>{SCHOOL_YEAR_LABELS[y]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="bio-age" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              Age
+            </label>
+            <input
+              id="bio-age" type="number" min="14" max="30" value={bio.age} onChange={e => setBioField('age', e.target.value)}
+              placeholder="20"
+              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 15 }}
+              className="px-3.5 py-2.5"
+            />
+          </div>
+          <div>
+            <label htmlFor="bio-sex" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              Sex
+            </label>
+            <select
+              id="bio-sex" value={bio.sex} onChange={e => setBioField('sex', e.target.value as AthleteBio['sex'])}
+              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 15, appearance: 'none' }}
+              className="px-3.5 py-2.5"
+            >
+              <option value="">—</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="bio-height" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              Height
+            </label>
+            <input
+              id="bio-height" value={bio.height} onChange={e => setBioField('height', e.target.value)}
+              placeholder={'6\'2"'}
+              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 15 }}
+              className="px-3.5 py-2.5"
+            />
+          </div>
+          <div>
+            <label htmlFor="bio-weight" style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+              Weight (lbs)
+            </label>
+            <input
+              id="bio-weight" type="number" min="0" value={bio.weight} onChange={e => setBioField('weight', e.target.value)}
+              placeholder="190"
+              style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 15 }}
+              className="px-3.5 py-2.5"
+            />
+          </div>
+        </div>
       </div>
 
       <div style={{ height: 1, background: 'var(--line)', marginBottom: 36, position: 'relative' }}>

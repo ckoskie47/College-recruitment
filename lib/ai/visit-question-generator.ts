@@ -29,7 +29,37 @@ export const PRIORITY_FACTOR_LABELS: Record<PriorityFactor, string> = {
 
 export type DecisionProfileAnswer = { a: number; b: number; c: number; d: number }
 
+export type SchoolYear =
+  | 'freshman' | 'redshirt_freshman'
+  | 'sophomore' | 'redshirt_sophomore'
+  | 'junior' | 'redshirt_junior'
+  | 'senior' | 'redshirt_senior'
+  | 'graduate'
+
+export const SCHOOL_YEAR_LABELS: Record<SchoolYear, string> = {
+  freshman:            'Freshman',
+  redshirt_freshman:   'Redshirt Freshman',
+  sophomore:           'Sophomore',
+  redshirt_sophomore:  'Redshirt Sophomore',
+  junior:              'Junior',
+  redshirt_junior:     'Redshirt Junior',
+  senior:              'Senior',
+  redshirt_senior:     'Redshirt Senior',
+  graduate:            'Graduate / 5th Year',
+}
+
+export type AthleteBio = {
+  age: string
+  schoolYear: SchoolYear | ''
+  sex: 'male' | 'female' | ''
+  height: string
+  weight: string
+  sport: string
+  position: string
+}
+
 export type AthleteProfile = {
+  bio?: AthleteBio
   // Part 1: 1–9 ranking (1 = most important)
   priority_ranking: Record<PriorityFactor, number>
   // Part 2: Decision profile — rank A–D within each question (1 = most like you)
@@ -122,6 +152,18 @@ function sortedPriorities(ranking: Record<PriorityFactor, number>): string[] {
     .map(([k]) => PRIORITY_FACTOR_LABELS[k])
 }
 
+export function formatBioLine(bio: AthleteBio | undefined): string {
+  if (!bio) return ''
+  const parts: string[] = []
+  if (bio.sport) parts.push(bio.sport)
+  if (bio.position) parts.push(bio.position)
+  if (bio.schoolYear) parts.push(SCHOOL_YEAR_LABELS[bio.schoolYear])
+  if (bio.age) parts.push(`age ${bio.age}`)
+  if (bio.height) parts.push(bio.height)
+  if (bio.weight) parts.push(`${bio.weight} lbs`)
+  return parts.join(', ')
+}
+
 function topDecisionChoice(answer: DecisionProfileAnswer): string {
   const opts: Array<keyof DecisionProfileAnswer> = ['a', 'b', 'c', 'd']
   return opts.slice().sort((x, y) => answer[x] - answer[y])[0].toUpperCase()
@@ -169,8 +211,10 @@ export async function generateVisitQuestions(
 ): Promise<VisitQuestionBooklet> {
   const priorities = sortedPriorities(profile.priority_ranking)
 
+  const bioLine = formatBioLine(profile.bio)
+
   const profileSummary = `
-ATHLETE: ${athleteName}
+ATHLETE: ${athleteName}${bioLine ? ` (${bioLine})` : ''}
 SCHOOL BEING VISITED: ${schoolName}
 
 PRIORITY RANKING (1 = most important):
