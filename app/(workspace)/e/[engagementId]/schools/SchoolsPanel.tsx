@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
-  saveTranscript, autoResearchSchool,
+  saveTranscript, autoResearchSchool, updateCommunicationNote,
 } from './actions'
 import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
@@ -18,6 +18,7 @@ import type { SchoolResearch } from '@/lib/ai/school-research-analyzer'
 import type { VisitQuestionBooklet } from '@/lib/ai/visit-question-generator'
 import { generateVisitQuestionsAction } from '../athlete-profile/actions'
 import { QuestionBookletDisplay } from '@/components/recruiting/QuestionBookletDisplay'
+import { MicButton } from '@/components/recruiting/MicButton'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -470,74 +471,142 @@ function TranscriptSection({ engagementId, meetingId, transcript }: {
   )
 }
 
-function CommunicationEntryView({ engagementId, entry }: { engagementId: string; entry: CommunicationEntry }) {
-  const [expanded, setExpanded] = useState(false)
+function EditableNote({ engagementId, meetingId, notes }: { engagementId: string; meetingId: string; notes: string | null }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(notes ?? '')
+  const [pending, start] = useTransition()
 
-  return (
-    <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '12px 16px', borderRadius: 3 }}>
-      <div className="flex items-start justify-between gap-2">
-        <div style={{ flex: 1 }}>
-          <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontWeight: 600 }} className="text-[14px]">
-            {entry.title}{entry.duration_minutes ? ` · ${entry.duration_minutes} min` : ''}
+  function handleSave() {
+    start(async () => {
+      await updateCommunicationNote(engagementId, meetingId, draft)
+      setEditing(false)
+    })
+  }
+
+  if (!editing) {
+    return (
+      <div className="mt-2">
+        {notes && (
+          <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)', whiteSpace: 'pre-wrap' }} className="text-[13px]">
+            {notes}
           </p>
-          <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mt-0.5">
-            {formatDate(entry.scheduled_at)}
-            {entry.who_initiated && <> · {entry.who_initiated}</>}
-            {entry.attendees && entry.attendees.length > 0 && <> · {entry.attendees.join(', ')}</>}
-            {entry.energy_level && <> · {ENERGY_LEVELS.find(l => l.value === entry.energy_level)?.label}</>}
-            {entry.transcript && <> · 📄 transcript</>}
-          </p>
-          {entry.notes && (
-            <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)', whiteSpace: 'pre-wrap' }} className="text-[13px] mt-2">
-              {entry.notes}
-            </p>
-          )}
-        </div>
-        <button onClick={() => setExpanded(v => !v)} style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
-          {expanded ? 'Hide' : 'Details'}
+        )}
+        <button
+          type="button" onClick={() => { setDraft(notes ?? ''); setEditing(true) }}
+          style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700, marginTop: notes ? 4 : 0 }}
+        >
+          {notes ? 'Edit note' : '+ Add note'}
         </button>
       </div>
-      {expanded && (
-        <div style={{ background: 'var(--cream)', borderRadius: 3, padding: '12px 14px', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {entry.topics.length > 0 && (
-            <div>
-              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Topics</p>
-              <ul style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px] list-disc pl-5">
-                {entry.topics.map((t, i) => <li key={i}>{t}</li>)}
-              </ul>
-            </div>
+    )
+  }
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-start gap-2">
+        <textarea
+          value={draft} onChange={e => setDraft(e.target.value)}
+          rows={3} autoFocus
+          style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 13, resize: 'vertical' }}
+          className="px-3 py-2"
+        />
+        <MicButton onTranscript={spoken => setDraft(prev => (prev ? `${prev} ${spoken}` : spoken))} />
+      </div>
+      <div className="flex items-center gap-2 mt-2">
+        <button onClick={handleSave} disabled={pending} style={{ background: pending ? 'var(--slate)' : 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700 }} className="px-4 py-2">
+          {pending ? 'Saving…' : 'Save note'}
+        </button>
+        <button onClick={() => setEditing(false)} style={{ background: 'transparent', color: 'var(--slate-soft)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11 }} className="px-3 py-2">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TimelineEntry({ engagementId, entry, isLast }: { engagementId: string; entry: CommunicationEntry; isLast: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasExtraDetail = entry.topics.length > 0 || entry.key_points.length > 0 || entry.questions_asked.length > 0 || Boolean(entry.athlete_takeaway)
+
+  return (
+    <div className="flex items-stretch gap-3">
+      {/* Timeline rail */}
+      <div className="flex flex-col items-center" style={{ width: 16, flexShrink: 0 }}>
+        <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--gold)', border: '2px solid var(--white)', boxShadow: '0 0 0 1px var(--line)', marginTop: 4, flexShrink: 0 }} />
+        {!isLast && <div style={{ flex: 1, width: 2, background: 'var(--line)', marginTop: 2 }} />}
+      </div>
+
+      {/* Card */}
+      <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '12px 16px', borderRadius: 3, flex: 1, marginBottom: 16 }}>
+        <div className="flex items-start justify-between gap-2">
+          <div style={{ flex: 1 }}>
+            <p style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontWeight: 600 }} className="text-[14px]">
+              {entry.title}{entry.duration_minutes ? ` · ${entry.duration_minutes} min` : ''}
+            </p>
+            <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mt-0.5">
+              {formatDate(entry.scheduled_at)}
+              {entry.who_initiated && <> · {entry.who_initiated}</>}
+              {entry.attendees && entry.attendees.length > 0 && <> · {entry.attendees.join(', ')}</>}
+              {entry.energy_level && <> · {ENERGY_LEVELS.find(l => l.value === entry.energy_level)?.label}</>}
+            </p>
+          </div>
+          {hasExtraDetail && (
+            <button onClick={() => setExpanded(v => !v)} style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              {expanded ? 'Hide' : 'Details'}
+            </button>
           )}
-          {entry.key_points.length > 0 && (
-            <div>
-              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Key points</p>
-              <ul style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px] list-disc pl-5">
-                {entry.key_points.map((t, i) => <li key={i}>{t}</li>)}
-              </ul>
-            </div>
-          )}
-          {entry.questions_asked.length > 0 && (
-            <div>
-              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Questions asked</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {entry.questions_asked.map((q, i) => (
-                  <div key={i} style={{ fontFamily: 'var(--sans)' }} className="text-[13px]">
-                    <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Q: {q.question}</span>
-                    {q.answer && <><br /><span style={{ color: 'var(--ink-soft)' }}>A: {q.answer}</span></>}
-                    {q.redFlagIdentified && <span style={{ color: 'var(--red)' }}> 🚩 red flag</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {entry.athlete_takeaway && (
-            <div>
-              <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Takeaway</p>
-              <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px]">{entry.athlete_takeaway}</p>
-            </div>
-          )}
+        </div>
+
+        <EditableNote engagementId={engagementId} meetingId={entry.id} notes={entry.notes} />
+
+        <div style={{ borderTop: '1px solid var(--line)', marginTop: 10, paddingTop: 10 }}>
+          <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-1">
+            Recording
+          </p>
           <TranscriptSection engagementId={engagementId} meetingId={entry.id} transcript={entry.transcript} />
         </div>
-      )}
+
+        {expanded && (
+          <div style={{ background: 'var(--cream)', borderRadius: 3, padding: '12px 14px', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {entry.topics.length > 0 && (
+              <div>
+                <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Topics</p>
+                <ul style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px] list-disc pl-5">
+                  {entry.topics.map((t, i) => <li key={i}>{t}</li>)}
+                </ul>
+              </div>
+            )}
+            {entry.key_points.length > 0 && (
+              <div>
+                <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Key points</p>
+                <ul style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px] list-disc pl-5">
+                  {entry.key_points.map((t, i) => <li key={i}>{t}</li>)}
+                </ul>
+              </div>
+            )}
+            {entry.questions_asked.length > 0 && (
+              <div>
+                <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Questions asked</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {entry.questions_asked.map((q, i) => (
+                    <div key={i} style={{ fontFamily: 'var(--sans)' }} className="text-[13px]">
+                      <span style={{ color: 'var(--ink)', fontWeight: 600 }}>Q: {q.question}</span>
+                      {q.answer && <><br /><span style={{ color: 'var(--ink-soft)' }}>A: {q.answer}</span></>}
+                      {q.redFlagIdentified && <span style={{ color: 'var(--red)' }}> 🚩 red flag</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {entry.athlete_takeaway && (
+              <div>
+                <p style={{ color: 'var(--navy)', fontFamily: 'var(--sans)', fontWeight: 600 }} className="text-[12px] mb-1">Takeaway</p>
+                <p style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="text-[13px]">{entry.athlete_takeaway}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -1047,11 +1116,13 @@ function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithD
           {logging && <LogInteractionForm engagementId={engagementId} vendorId={school.id} onDone={() => setLogging(false)} />}
 
           {school.communications.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: logging ? 16 : 0 }}>
-              <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest">
-                Communication history
+            <div style={{ marginTop: logging ? 16 : 0 }}>
+              <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-3">
+                Timeline
               </p>
-              {school.communications.map(c => <CommunicationEntryView key={c.id} engagementId={engagementId} entry={c} />)}
+              {school.communications.map((c, i) => (
+                <TimelineEntry key={c.id} engagementId={engagementId} entry={c} isLast={i === school.communications.length - 1} />
+              ))}
             </div>
           )}
         </div>

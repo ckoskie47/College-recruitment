@@ -388,3 +388,24 @@ export async function saveTranscript(
   revalidatePath(`/e/${engagementId}/schools`)
   return { success: true }
 }
+
+// ---------------------------------------------------------------------------
+// Edit the note on an already-logged touchpoint (timeline entries aren't
+// write-once — new information often comes in after the fact).
+// ---------------------------------------------------------------------------
+
+export async function updateCommunicationNote(
+  engagementId: string,
+  meetingId: string,
+  notes: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+
+  const { error } = await ctx.svc.from('meetings').update({
+    notes: notes.trim() || null,
+  }).eq('id', meetingId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
