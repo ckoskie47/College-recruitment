@@ -508,6 +508,8 @@ export type Database = {
           key_points: string[] | null
           location: string | null
           notes: string | null
+          nps_reason: string | null
+          nps_score: number | null
           questions_asked: Json | null
           scheduled_at: string
           status: Database["public"]["Enums"]["meeting_status"]
@@ -530,6 +532,8 @@ export type Database = {
           key_points?: string[] | null
           location?: string | null
           notes?: string | null
+          nps_reason?: string | null
+          nps_score?: number | null
           questions_asked?: Json | null
           scheduled_at: string
           status?: Database["public"]["Enums"]["meeting_status"]
@@ -552,6 +556,8 @@ export type Database = {
           key_points?: string[] | null
           location?: string | null
           notes?: string | null
+          nps_reason?: string | null
+          nps_score?: number | null
           questions_asked?: Json | null
           scheduled_at?: string
           status?: Database["public"]["Enums"]["meeting_status"]
@@ -1134,6 +1140,7 @@ export type Database = {
           name: string
           nil_offer_amount: number | null
           nil_offer_notes: string | null
+          overall_rank: number | null
           ownership_type: Database["public"]["Enums"]["ownership_type"]
           parent_company: string | null
           passed_reason: string | null
@@ -1157,6 +1164,7 @@ export type Database = {
           name: string
           nil_offer_amount?: number | null
           nil_offer_notes?: string | null
+          overall_rank?: number | null
           ownership_type?: Database["public"]["Enums"]["ownership_type"]
           parent_company?: string | null
           passed_reason?: string | null
@@ -1180,6 +1188,7 @@ export type Database = {
           name?: string
           nil_offer_amount?: number | null
           nil_offer_notes?: string | null
+          overall_rank?: number | null
           ownership_type?: Database["public"]["Enums"]["ownership_type"]
           parent_company?: string | null
           passed_reason?: string | null

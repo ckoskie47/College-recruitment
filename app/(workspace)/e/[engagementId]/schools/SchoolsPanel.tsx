@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react'
 import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
-  saveTranscript, autoResearchSchool, updateCommunicationNote,
+  saveTranscript, autoResearchSchool, updateCommunicationNote, updateCommunicationNps,
+  reorderSchoolRanking,
 } from './actions'
 import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
@@ -19,6 +20,7 @@ import type { VisitQuestionBooklet } from '@/lib/ai/visit-question-generator'
 import { generateVisitQuestionsAction } from '../athlete-profile/actions'
 import { QuestionBookletDisplay } from '@/components/recruiting/QuestionBookletDisplay'
 import { MicButton } from '@/components/recruiting/MicButton'
+import { DragRankList } from '@/components/recruiting/DragRankList'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,6 +48,8 @@ export type CommunicationEntry = {
   notes: string | null
   attendees: string[] | null
   transcript: TranscriptEntry | null
+  nps_score: number | null
+  nps_reason: string | null
 }
 
 export type RedFlagEntry = {
@@ -82,6 +86,7 @@ export type SchoolWithDetails = {
   pt_estimate: string | null
   decision_deadline: string | null
   passed_reason: string | null
+  overall_rank: number | null
   metadata: { next_step?: string } | null
   communications: CommunicationEntry[]
   redFlags: RedFlagEntry[]
@@ -208,6 +213,54 @@ function AddSchoolForm({ engagementId, onAdded }: { engagementId: string; onAdde
 }
 
 // ---------------------------------------------------------------------------
+// NPS scale (1-10) + main reason — captured on every touchpoint
+// ---------------------------------------------------------------------------
+
+function npsColor(n: number): string {
+  if (n >= 9) return 'var(--green)'
+  if (n >= 7) return 'var(--gold)'
+  return 'var(--red)'
+}
+
+function NpsScale({ score, onScoreChange, reason, onReasonChange }: {
+  score: string; onScoreChange: (v: string) => void
+  reason: string; onReasonChange: (v: string) => void
+}) {
+  return (
+    <div>
+      <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+        How likely are you to pick this school right now? (1–10)
+      </label>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
+          const active = score === String(n)
+          return (
+            <button
+              key={n} type="button" onClick={() => onScoreChange(String(n))}
+              style={{
+                width: 34, height: 34, borderRadius: 4,
+                background: active ? npsColor(n) : 'var(--paper)',
+                color: active ? 'var(--cream)' : 'var(--ink)',
+                border: `1px solid ${active ? npsColor(n) : 'var(--line)'}`,
+                fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              }}
+            >
+              {n}
+            </button>
+          )
+        })}
+      </div>
+      <input
+        value={reason} onChange={e => onReasonChange(e.target.value)}
+        placeholder="Main reason for that score…"
+        style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 14 }}
+        className="px-3 py-2"
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Log Interaction Form
 // ---------------------------------------------------------------------------
 
@@ -225,6 +278,8 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
   const [questionsAsked, setQuestionsAsked] = useState<QuestionAskedInput[]>([])
   const [athleteTakeaway, setAthleteTakeaway] = useState('')
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel | ''>('')
+  const [npsScore, setNpsScore] = useState('')
+  const [npsReason, setNpsReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
@@ -254,6 +309,7 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
         topics: topics.split('\n').map(t => t.trim()).filter(Boolean),
         keyPoints: keyPoints.split('\n').map(t => t.trim()).filter(Boolean),
         questionsAsked, athleteTakeaway, energyLevel, notes, participants,
+        npsScore, npsReason,
       })
       if (r.success) onDone()
       else setError(r.error ?? 'Failed.')
@@ -286,6 +342,8 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
             className="px-4 py-3"
           />
         </div>
+
+        <NpsScale score={npsScore} onScoreChange={setNpsScore} reason={npsReason} onReasonChange={setNpsReason} />
 
         <div>
           <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-2">
@@ -524,6 +582,57 @@ function EditableNote({ engagementId, meetingId, notes }: { engagementId: string
   )
 }
 
+function EditableNps({ engagementId, meetingId, npsScore, npsReason }: {
+  engagementId: string; meetingId: string; npsScore: number | null; npsReason: string | null
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draftScore, setDraftScore] = useState(npsScore != null ? String(npsScore) : '')
+  const [draftReason, setDraftReason] = useState(npsReason ?? '')
+  const [pending, start] = useTransition()
+
+  function handleSave() {
+    start(async () => {
+      await updateCommunicationNps(engagementId, meetingId, draftScore, draftReason)
+      setEditing(false)
+    })
+  }
+
+  if (!editing) {
+    return (
+      <div className="mt-2">
+        {npsScore != null && (
+          <div className="flex items-center gap-2">
+            <span style={{ background: npsColor(npsScore), color: 'var(--cream)', fontFamily: 'var(--mono)', fontWeight: 700 }} className="px-2 py-0.5 text-[11px] rounded-sm">
+              {npsScore}/10
+            </span>
+            {npsReason && <span style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">{npsReason}</span>}
+          </div>
+        )}
+        <button
+          type="button" onClick={() => { setDraftScore(npsScore != null ? String(npsScore) : ''); setDraftReason(npsReason ?? ''); setEditing(true) }}
+          style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700, marginTop: npsScore != null ? 4 : 0 }}
+        >
+          {npsScore != null ? 'Edit score' : '+ Rate this school (1–10)'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2">
+      <NpsScale score={draftScore} onScoreChange={setDraftScore} reason={draftReason} onReasonChange={setDraftReason} />
+      <div className="flex items-center gap-2 mt-2">
+        <button onClick={handleSave} disabled={pending} style={{ background: pending ? 'var(--slate)' : 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700 }} className="px-4 py-2">
+          {pending ? 'Saving…' : 'Save score'}
+        </button>
+        <button onClick={() => setEditing(false)} style={{ background: 'transparent', color: 'var(--slate-soft)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11 }} className="px-3 py-2">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function TimelineEntry({ engagementId, entry, isLast }: { engagementId: string; entry: CommunicationEntry; isLast: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const hasExtraDetail = entry.topics.length > 0 || entry.key_points.length > 0 || entry.questions_asked.length > 0 || Boolean(entry.athlete_takeaway)
@@ -558,6 +667,7 @@ function TimelineEntry({ engagementId, entry, isLast }: { engagementId: string; 
         </div>
 
         <EditableNote engagementId={engagementId} meetingId={entry.id} notes={entry.notes} />
+        <EditableNps engagementId={engagementId} meetingId={entry.id} npsScore={entry.nps_score} npsReason={entry.nps_reason} />
 
         <div style={{ borderTop: '1px solid var(--line)', marginTop: 10, paddingTop: 10 }}>
           <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-1">
@@ -1019,6 +1129,11 @@ function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithD
                 {school.name}
               </h3>
               <StatusPill status={school.pipeline_status} />
+              {school.overall_rank != null && school.pipeline_status === 'active' && (
+                <span style={{ background: 'var(--gold)', color: 'var(--navy)', fontFamily: 'var(--sans)' }} className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-sm">
+                  #{school.overall_rank}
+                </span>
+              )}
               {activeFlagCount > 0 && (
                 <span style={{ background: '#F4D9D7', color: '#9E2A2B', border: '1px solid #E8B4B2', fontFamily: 'var(--sans)' }} className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-sm">
                   🚩 {activeFlagCount}
@@ -1135,6 +1250,48 @@ function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithD
 // Main Panel
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Current standings — ongoing gut-feel ranking, updatable anytime
+// ---------------------------------------------------------------------------
+
+function CurrentStandingsSection({ engagementId, schools }: { engagementId: string; schools: SchoolWithDetails[] }) {
+  const [, start] = useTransition()
+  const active = schools.filter(s => s.pipeline_status === 'active')
+  const ordered = [...active].sort((a, b) => {
+    const ra = a.overall_rank ?? Infinity
+    const rb = b.overall_rank ?? Infinity
+    if (ra !== rb) return ra - rb
+    return a.name.localeCompare(b.name)
+  })
+
+  if (ordered.length < 2) return null
+
+  function handleReorder(newOrder: SchoolWithDetails[]) {
+    start(async () => { await reorderSchoolRanking(engagementId, newOrder.map(s => s.id)) })
+  }
+
+  return (
+    <div className="mb-6">
+      <p style={{ color: 'var(--gold)', fontFamily: 'var(--sans)' }} className="text-[10px] font-semibold uppercase tracking-widest mb-1">
+        Current Standings
+      </p>
+      <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[12px] mb-3">
+        Drag to reorder — your gut-feel ranking right now, separate from the weighted comparison on the Decision page.
+      </p>
+      <DragRankList
+        items={ordered}
+        getKey={s => s.id}
+        renderLabel={school => (
+          <span style={{ fontFamily: 'var(--sans)', color: 'var(--ink)', fontSize: 14, fontWeight: 600 }}>
+            {school.name}
+          </span>
+        )}
+        onReorder={handleReorder}
+      />
+    </div>
+  )
+}
+
 export function SchoolsPanel({ engagementId, athleteName, schools, exitInterviewFlags, exitInterviewAvoid }: {
   engagementId: string
   athleteName: string
@@ -1172,6 +1329,8 @@ export function SchoolsPanel({ engagementId, athleteName, schools, exitInterview
           {totalActiveFlags > 0 && ` · ${totalActiveFlags} open red flag${totalActiveFlags !== 1 ? 's' : ''}`}
         </p>
       </div>
+
+      <CurrentStandingsSection engagementId={engagementId} schools={schools} />
 
       {exitInterviewAvoid && (
         <div style={{ background: 'var(--white)', border: '1px solid var(--line)', padding: '14px 18px', marginBottom: 16 }}>

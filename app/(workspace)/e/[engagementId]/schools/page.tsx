@@ -32,11 +32,11 @@ export default async function SchoolsPage({
 
   const [{ data: vendors }, { data: meetings }, { data: redFlags }, { data: questions }] = await Promise.all([
     svc.from('vendors')
-      .select('id, school_id, name, contact_name, contact_email, pipeline_stage, pipeline_status, nil_offer_amount, nil_offer_notes, pt_estimate, decision_deadline, passed_reason, metadata')
+      .select('id, school_id, name, contact_name, contact_email, pipeline_stage, pipeline_status, nil_offer_amount, nil_offer_notes, pt_estimate, decision_deadline, passed_reason, metadata, overall_rank')
       .eq('engagement_id', engagementId)
       .order('created_at', { ascending: true }),
     svc.from('meetings')
-      .select('id, vendor_id, title, scheduled_at, duration_minutes, comm_type, topics, key_points, questions_asked, athlete_takeaway, energy_level, who_initiated, notes, attendees')
+      .select('id, vendor_id, title, scheduled_at, duration_minutes, comm_type, topics, key_points, questions_asked, athlete_takeaway, energy_level, who_initiated, notes, attendees, nps_score, nps_reason')
       .eq('engagement_id', engagementId)
       .order('scheduled_at', { ascending: false }),
     svc.from('red_flags')
@@ -116,6 +116,8 @@ export default async function SchoolsPage({
       notes: m.notes,
       attendees: Array.isArray(m.attendees) ? m.attendees as string[] : null,
       transcript: transcriptsByMeeting[m.id] ?? null,
+      nps_score: m.nps_score,
+      nps_reason: m.nps_reason,
     })
   }
 
@@ -162,6 +164,7 @@ export default async function SchoolsPage({
     pt_estimate: v.pt_estimate,
     decision_deadline: v.decision_deadline,
     passed_reason: v.passed_reason,
+    overall_rank: v.overall_rank,
     metadata: v.metadata as { next_step?: string } | null,
     communications: meetingsByVendor[v.id] ?? [],
     redFlags: redFlagsByVendor[v.id] ?? [],

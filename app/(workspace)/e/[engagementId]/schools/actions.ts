@@ -131,6 +131,30 @@ export async function updateSchoolOffer(
   return { success: true }
 }
 
+// ---------------------------------------------------------------------------
+// Current standings — a lightweight, drag-to-reorder gut-feel ranking the
+// athlete can update anytime, separate from the weighted-factor comparison
+// on the Decision page. List position IS the rank.
+// ---------------------------------------------------------------------------
+
+export async function reorderSchoolRanking(
+  engagementId: string,
+  orderedVendorIds: string[],
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+
+  const updates = orderedVendorIds.map((id, i) =>
+    ctx.svc.from('vendors').update({ overall_rank: i + 1 }).eq('id', id)
+  )
+  const results = await Promise.all(updates)
+  const failed = results.find(r => r.error)
+  if (failed?.error) return { success: false, error: failed.error.message }
+
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
 export async function updateNextStep(
   vendorId: string, engagementId: string, nextStep: string,
 ): Promise<{ success: boolean; error?: string }> {
@@ -164,6 +188,8 @@ export async function logInteraction(
     energyLevel: EnergyLevel | ''
     notes: string
     participants: string[]
+    npsScore: string
+    npsReason: string
   },
 ): Promise<{ success: boolean; error?: string }> {
   const ctx = await getCtx()
@@ -187,6 +213,8 @@ export async function logInteraction(
     athlete_takeaway: fields.athleteTakeaway.trim() || null,
     energy_level: fields.energyLevel || null,
     who_initiated: fields.whoInitiated.trim() || null,
+    nps_score: fields.npsScore ? parseInt(fields.npsScore, 10) : null,
+    nps_reason: fields.npsReason.trim() || null,
     created_by: ctx.user.id,
   })
 
@@ -404,6 +432,24 @@ export async function updateCommunicationNote(
 
   const { error } = await ctx.svc.from('meetings').update({
     notes: notes.trim() || null,
+  }).eq('id', meetingId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+export async function updateCommunicationNps(
+  engagementId: string,
+  meetingId: string,
+  npsScore: string,
+  npsReason: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+
+  const { error } = await ctx.svc.from('meetings').update({
+    nps_score: npsScore ? parseInt(npsScore, 10) : null,
+    nps_reason: npsReason.trim() || null,
   }).eq('id', meetingId)
   if (error) return { success: false, error: error.message }
   revalidatePath(`/e/${engagementId}/schools`)
