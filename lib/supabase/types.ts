@@ -498,7 +498,9 @@ export type Database = {
         Row: {
           athlete_takeaway: string | null
           attendees: Json | null
+          best_thing: string | null
           comm_type: Database["public"]["Enums"]["comm_type"] | null
+          concern: string | null
           created_at: string
           created_by: string | null
           duration_minutes: number | null
@@ -524,7 +526,9 @@ export type Database = {
         Insert: {
           athlete_takeaway?: string | null
           attendees?: Json | null
+          best_thing?: string | null
           comm_type?: Database["public"]["Enums"]["comm_type"] | null
+          concern?: string | null
           created_at?: string
           created_by?: string | null
           duration_minutes?: number | null
@@ -550,7 +554,9 @@ export type Database = {
         Update: {
           athlete_takeaway?: string | null
           attendees?: Json | null
+          best_thing?: string | null
           comm_type?: Database["public"]["Enums"]["comm_type"] | null
+          concern?: string | null
           created_at?: string
           created_by?: string | null
           duration_minutes?: number | null

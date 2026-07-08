@@ -5,7 +5,7 @@ import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
   saveTranscript, autoResearchSchool, updateCommunicationNote, updateCommunicationNps,
-  updateCommunicationParentNps, reorderSchoolRanking,
+  updateCommunicationParentNps, updateCommunicationVisitImpressions, reorderSchoolRanking,
 } from './actions'
 import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
@@ -52,6 +52,8 @@ export type CommunicationEntry = {
   nps_reason: string | null
   parent_nps_score: number | null
   parent_nps_reason: string | null
+  best_thing: string | null
+  concern: string | null
 }
 
 export type RedFlagEntry = {
@@ -285,6 +287,8 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
   const [npsReason, setNpsReason] = useState('')
   const [parentNpsScore, setParentNpsScore] = useState('')
   const [parentNpsReason, setParentNpsReason] = useState('')
+  const [bestThing, setBestThing] = useState('')
+  const [concern, setConcern] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
@@ -314,7 +318,7 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
         topics: topics.split('\n').map(t => t.trim()).filter(Boolean),
         keyPoints: keyPoints.split('\n').map(t => t.trim()).filter(Boolean),
         questionsAsked, athleteTakeaway, energyLevel, notes, participants,
-        npsScore, npsReason, parentNpsScore, parentNpsReason,
+        npsScore, npsReason, parentNpsScore, parentNpsReason, bestThing, concern,
       })
       if (r.success) onDone()
       else setError(r.error ?? 'Failed.')
@@ -351,12 +355,26 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
         <NpsScale score={npsScore} onScoreChange={setNpsScore} reason={npsReason} onReasonChange={setNpsReason} />
 
         {commType === 'visit' && (
-          <NpsScale
-            score={parentNpsScore} onScoreChange={setParentNpsScore}
-            reason={parentNpsReason} onReasonChange={setParentNpsReason}
-            label="Parent rating, if they'd like to weigh in (1–10)"
-            reasonPlaceholder="Main reason for their score… (optional)"
-          />
+          <>
+            <NpsScale
+              score={parentNpsScore} onScoreChange={setParentNpsScore}
+              reason={parentNpsReason} onReasonChange={setParentNpsReason}
+              label="Parent rating, if they'd like to weigh in (1–10)"
+              reasonPlaceholder="Main reason for their score… (optional)"
+            />
+            <div>
+              <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+                Best thing about the school
+              </label>
+              <input value={bestThing} onChange={e => setBestThing(e.target.value)} placeholder="What stood out in a good way…" style={inputStyle} className="px-3 py-3" />
+            </div>
+            <div>
+              <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
+                Concern about the school
+              </label>
+              <input value={concern} onChange={e => setConcern(e.target.value)} placeholder="Anything that gave pause…" style={inputStyle} className="px-3 py-3" />
+            </div>
+          </>
         )}
 
         <div>
@@ -701,6 +719,68 @@ function EditableParentNps({ engagementId, meetingId, parentNpsScore, parentNpsR
   )
 }
 
+function EditableVisitImpressions({ engagementId, meetingId, bestThing, concern }: {
+  engagementId: string; meetingId: string; bestThing: string | null; concern: string | null
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draftBest, setDraftBest] = useState(bestThing ?? '')
+  const [draftConcern, setDraftConcern] = useState(concern ?? '')
+  const [pending, start] = useTransition()
+
+  function handleSave() {
+    start(async () => {
+      await updateCommunicationVisitImpressions(engagementId, meetingId, draftBest, draftConcern)
+      setEditing(false)
+    })
+  }
+
+  if (!editing) {
+    return (
+      <div className="mt-2">
+        {(bestThing || concern) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {bestThing && <p style={{ color: 'var(--green)', fontFamily: 'var(--sans)' }} className="text-[12px]">✓ {bestThing}</p>}
+            {concern && <p style={{ color: 'var(--red)', fontFamily: 'var(--sans)' }} className="text-[12px]">⚠ {concern}</p>}
+          </div>
+        )}
+        <button
+          type="button" onClick={() => { setDraftBest(bestThing ?? ''); setDraftConcern(concern ?? ''); setEditing(true) }}
+          style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700, marginTop: (bestThing || concern) ? 4 : 0 }}
+        >
+          {(bestThing || concern) ? 'Edit best thing / concern' : '+ Add best thing / concern'}
+        </button>
+      </div>
+    )
+  }
+
+  const editInputStyle = { border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 13 }
+
+  return (
+    <div className="mt-2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div>
+        <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-1">
+          Best thing about the school
+        </label>
+        <input value={draftBest} onChange={e => setDraftBest(e.target.value)} style={editInputStyle} className="px-3 py-2" />
+      </div>
+      <div>
+        <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-1">
+          Concern about the school
+        </label>
+        <input value={draftConcern} onChange={e => setDraftConcern(e.target.value)} style={editInputStyle} className="px-3 py-2" />
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={handleSave} disabled={pending} style={{ background: pending ? 'var(--slate)' : 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700 }} className="px-4 py-2">
+          {pending ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={() => setEditing(false)} style={{ background: 'transparent', color: 'var(--slate-soft)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11 }} className="px-3 py-2">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function TimelineEntry({ engagementId, entry, isLast }: { engagementId: string; entry: CommunicationEntry; isLast: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const hasExtraDetail = entry.topics.length > 0 || entry.key_points.length > 0 || entry.questions_asked.length > 0 || Boolean(entry.athlete_takeaway)
@@ -737,7 +817,10 @@ function TimelineEntry({ engagementId, entry, isLast }: { engagementId: string; 
         <EditableNote engagementId={engagementId} meetingId={entry.id} notes={entry.notes} />
         <EditableNps engagementId={engagementId} meetingId={entry.id} npsScore={entry.nps_score} npsReason={entry.nps_reason} />
         {entry.comm_type === 'visit' && (
-          <EditableParentNps engagementId={engagementId} meetingId={entry.id} parentNpsScore={entry.parent_nps_score} parentNpsReason={entry.parent_nps_reason} />
+          <>
+            <EditableParentNps engagementId={engagementId} meetingId={entry.id} parentNpsScore={entry.parent_nps_score} parentNpsReason={entry.parent_nps_reason} />
+            <EditableVisitImpressions engagementId={engagementId} meetingId={entry.id} bestThing={entry.best_thing} concern={entry.concern} />
+          </>
         )}
 
         <div style={{ borderTop: '1px solid var(--line)', marginTop: 10, paddingTop: 10 }}>
