@@ -364,13 +364,13 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
             />
             <div>
               <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
-                Best thing about the school
+                Best thing about the school/visit
               </label>
               <input value={bestThing} onChange={e => setBestThing(e.target.value)} placeholder="What stood out in a good way…" style={inputStyle} className="px-3 py-3" />
             </div>
             <div>
               <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
-                Concern about the school
+                Concern about the school/visit
               </label>
               <input value={concern} onChange={e => setConcern(e.target.value)} placeholder="Anything that gave pause…" style={inputStyle} className="px-3 py-3" />
             </div>
@@ -759,13 +759,13 @@ function EditableVisitImpressions({ engagementId, meetingId, bestThing, concern 
     <div className="mt-2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div>
         <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-1">
-          Best thing about the school
+          Best thing about the school/visit
         </label>
         <input value={draftBest} onChange={e => setDraftBest(e.target.value)} style={editInputStyle} className="px-3 py-2" />
       </div>
       <div>
         <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-1">
-          Concern about the school
+          Concern about the school/visit
         </label>
         <input value={draftConcern} onChange={e => setDraftConcern(e.target.value)} style={editInputStyle} className="px-3 py-2" />
       </div>
