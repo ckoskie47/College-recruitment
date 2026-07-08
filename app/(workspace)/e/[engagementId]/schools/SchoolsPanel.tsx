@@ -139,13 +139,14 @@ function StatusPill({ status }: { status: PipelineStatus }) {
 // Stage progress indicator
 // ---------------------------------------------------------------------------
 
+// Stages aren't a required sequence — a school can go straight from a text
+// to a decision, or skip zoom/visit/offer entirely. This only marks the
+// CURRENT stage; it never implies earlier stages were actually completed.
 function StageProgress({ stage, status, onChange }: { stage: PipelineStage; status: PipelineStatus; onChange: (s: PipelineStage) => void }) {
-  const currentIndex = PIPELINE_STAGES.findIndex(s => s.value === stage)
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      {PIPELINE_STAGES.map((s, i) => {
-        const done = i < currentIndex
-        const current = i === currentIndex
+      {PIPELINE_STAGES.map((s) => {
+        const current = s.value === stage
         return (
           <button
             key={s.value}
@@ -154,14 +155,14 @@ function StageProgress({ stage, status, onChange }: { stage: PipelineStage; stat
             onClick={() => onChange(s.value)}
             title={`Mark as ${s.label}`}
             style={{
-              background: current ? 'var(--navy)' : done ? 'var(--green)' : 'var(--white)',
-              color: current || done ? 'var(--cream)' : 'var(--slate-soft)',
-              border: `1px solid ${current ? 'var(--navy)' : done ? 'var(--green)' : 'var(--line)'}`,
+              background: current ? 'var(--navy)' : 'var(--white)',
+              color: current ? 'var(--cream)' : 'var(--slate-soft)',
+              border: `1px solid ${current ? 'var(--navy)' : 'var(--line)'}`,
               fontFamily: 'var(--sans)', cursor: status === 'active' ? 'pointer' : 'default',
             }}
             className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide rounded-sm"
           >
-            {done || current ? '✓ ' : ''}{s.label}
+            {current ? '● ' : ''}{s.label}
           </button>
         )
       })}
