@@ -5,7 +5,7 @@ import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
   saveTranscript, autoResearchSchool, updateCommunicationNote, updateCommunicationNps,
-  reorderSchoolRanking,
+  updateCommunicationParentNps, reorderSchoolRanking,
 } from './actions'
 import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
@@ -50,6 +50,8 @@ export type CommunicationEntry = {
   transcript: TranscriptEntry | null
   nps_score: number | null
   nps_reason: string | null
+  parent_nps_score: number | null
+  parent_nps_reason: string | null
 }
 
 export type RedFlagEntry = {
@@ -222,14 +224,15 @@ function npsColor(n: number): string {
   return 'var(--red)'
 }
 
-function NpsScale({ score, onScoreChange, reason, onReasonChange }: {
+function NpsScale({ score, onScoreChange, reason, onReasonChange, label, reasonPlaceholder }: {
   score: string; onScoreChange: (v: string) => void
   reason: string; onReasonChange: (v: string) => void
+  label?: string; reasonPlaceholder?: string
 }) {
   return (
     <div>
       <label style={{ color: 'var(--ink)', fontFamily: 'var(--sans)' }} className="block text-[11px] font-semibold tracking-[0.08em] uppercase mb-2">
-        How likely are you to pick this school right now? (1–10)
+        {label ?? 'How likely are you to pick this school right now? (1–10)'}
       </label>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
@@ -252,7 +255,7 @@ function NpsScale({ score, onScoreChange, reason, onReasonChange }: {
       </div>
       <input
         value={reason} onChange={e => onReasonChange(e.target.value)}
-        placeholder="Main reason for that score…"
+        placeholder={reasonPlaceholder ?? 'Main reason for that score…'}
         style={{ border: '1px solid var(--line)', background: 'var(--paper)', color: 'var(--ink)', fontFamily: 'var(--sans)', outline: 'none', width: '100%', fontSize: 14 }}
         className="px-3 py-2"
       />
@@ -280,6 +283,8 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel | ''>('')
   const [npsScore, setNpsScore] = useState('')
   const [npsReason, setNpsReason] = useState('')
+  const [parentNpsScore, setParentNpsScore] = useState('')
+  const [parentNpsReason, setParentNpsReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
@@ -301,7 +306,7 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
   }
 
   function handle() {
-    if (!notes.trim()) { setError('Add a note about the call.'); return }
+    if (!notes.trim()) { setError('Add a note about this touchpoint.'); return }
     setError(null)
     start(async () => {
       const r = await logInteraction(engagementId, vendorId, {
@@ -309,7 +314,7 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
         topics: topics.split('\n').map(t => t.trim()).filter(Boolean),
         keyPoints: keyPoints.split('\n').map(t => t.trim()).filter(Boolean),
         questionsAsked, athleteTakeaway, energyLevel, notes, participants,
-        npsScore, npsReason,
+        npsScore, npsReason, parentNpsScore, parentNpsReason,
       })
       if (r.success) onDone()
       else setError(r.error ?? 'Failed.')
@@ -345,9 +350,18 @@ function LogInteractionForm({ engagementId, vendorId, onDone }: { engagementId: 
 
         <NpsScale score={npsScore} onScoreChange={setNpsScore} reason={npsReason} onReasonChange={setNpsReason} />
 
+        {commType === 'visit' && (
+          <NpsScale
+            score={parentNpsScore} onScoreChange={setParentNpsScore}
+            reason={parentNpsReason} onReasonChange={setParentNpsReason}
+            label="Parent rating, if they'd like to weigh in (1–10)"
+            reasonPlaceholder="Main reason for their score… (optional)"
+          />
+        )}
+
         <div>
           <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-2">
-            Who was on the call
+            {commType === 'visit' ? 'Who was there' : 'Who was on the call'}
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {PARTICIPANT_OPTIONS.map(p => (
@@ -633,6 +647,60 @@ function EditableNps({ engagementId, meetingId, npsScore, npsReason }: {
   )
 }
 
+function EditableParentNps({ engagementId, meetingId, parentNpsScore, parentNpsReason }: {
+  engagementId: string; meetingId: string; parentNpsScore: number | null; parentNpsReason: string | null
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draftScore, setDraftScore] = useState(parentNpsScore != null ? String(parentNpsScore) : '')
+  const [draftReason, setDraftReason] = useState(parentNpsReason ?? '')
+  const [pending, start] = useTransition()
+
+  function handleSave() {
+    start(async () => {
+      await updateCommunicationParentNps(engagementId, meetingId, draftScore, draftReason)
+      setEditing(false)
+    })
+  }
+
+  if (!editing) {
+    return (
+      <div className="mt-2">
+        {parentNpsScore != null && (
+          <div className="flex items-center gap-2">
+            <span style={{ background: npsColor(parentNpsScore), color: 'var(--cream)', fontFamily: 'var(--mono)', fontWeight: 700 }} className="px-2 py-0.5 text-[11px] rounded-sm">
+              Parent {parentNpsScore}/10
+            </span>
+            {parentNpsReason && <span style={{ color: 'var(--ink-soft)', fontFamily: 'var(--sans)' }} className="text-[12px]">{parentNpsReason}</span>}
+          </div>
+        )}
+        <button
+          type="button" onClick={() => { setDraftScore(parentNpsScore != null ? String(parentNpsScore) : ''); setDraftReason(parentNpsReason ?? ''); setEditing(true) }}
+          style={{ color: 'var(--navy)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700, marginTop: parentNpsScore != null ? 4 : 0 }}
+        >
+          {parentNpsScore != null ? 'Edit parent rating' : '+ Add a parent rating (1–10)'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2">
+      <NpsScale
+        score={draftScore} onScoreChange={setDraftScore} reason={draftReason} onReasonChange={setDraftReason}
+        label="Parent rating (1–10)" reasonPlaceholder="Main reason for their score… (optional)"
+      />
+      <div className="flex items-center gap-2 mt-2">
+        <button onClick={handleSave} disabled={pending} style={{ background: pending ? 'var(--slate)' : 'var(--navy)', color: 'var(--cream)', fontFamily: 'var(--sans)', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700 }} className="px-4 py-2">
+          {pending ? 'Saving…' : 'Save rating'}
+        </button>
+        <button onClick={() => setEditing(false)} style={{ background: 'transparent', color: 'var(--slate-soft)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11 }} className="px-3 py-2">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function TimelineEntry({ engagementId, entry, isLast }: { engagementId: string; entry: CommunicationEntry; isLast: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const hasExtraDetail = entry.topics.length > 0 || entry.key_points.length > 0 || entry.questions_asked.length > 0 || Boolean(entry.athlete_takeaway)
@@ -668,6 +736,9 @@ function TimelineEntry({ engagementId, entry, isLast }: { engagementId: string; 
 
         <EditableNote engagementId={engagementId} meetingId={entry.id} notes={entry.notes} />
         <EditableNps engagementId={engagementId} meetingId={entry.id} npsScore={entry.nps_score} npsReason={entry.nps_reason} />
+        {entry.comm_type === 'visit' && (
+          <EditableParentNps engagementId={engagementId} meetingId={entry.id} parentNpsScore={entry.parent_nps_score} parentNpsReason={entry.parent_nps_reason} />
+        )}
 
         <div style={{ borderTop: '1px solid var(--line)', marginTop: 10, paddingTop: 10 }}>
           <p style={{ color: 'var(--slate-soft)', fontFamily: 'var(--sans)' }} className="text-[11px] font-semibold uppercase tracking-widest mb-1">
@@ -1098,6 +1169,7 @@ function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithD
   const lastComm = school.communications[0]
 
   function handleStageChange(s: PipelineStage) {
+    if (s === 'offer') setExpanded(true)
     startStage(async () => { await updateSchoolStage(school.id, engagementId, s) })
   }
 
@@ -1211,6 +1283,14 @@ function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithD
             <button onClick={handleReactivate} style={{ background: 'transparent', color: 'var(--navy)', border: '1px solid var(--line)', fontFamily: 'var(--sans)', cursor: 'pointer', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }} className="px-3 py-2 mb-4">
               Reactivate
             </button>
+          )}
+
+          {school.pipeline_stage === 'offer' && school.nil_offer_amount == null && !school.pt_estimate && !school.decision_deadline && !school.nil_offer_notes && (
+            <div style={{ background: '#FBEFCF', border: '1px solid #F0D98B', padding: '10px 14px', marginBottom: 12 }}>
+              <p style={{ color: '#8A6416', fontFamily: 'var(--sans)', fontWeight: 700 }} className="text-[12px]">
+                🎉 Offer received — enter the details below.
+              </p>
+            </div>
           )}
 
           <OfferSection

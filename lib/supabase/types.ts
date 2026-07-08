@@ -510,6 +510,8 @@ export type Database = {
           notes: string | null
           nps_reason: string | null
           nps_score: number | null
+          parent_nps_reason: string | null
+          parent_nps_score: number | null
           questions_asked: Json | null
           scheduled_at: string
           status: Database["public"]["Enums"]["meeting_status"]
@@ -534,6 +536,8 @@ export type Database = {
           notes?: string | null
           nps_reason?: string | null
           nps_score?: number | null
+          parent_nps_reason?: string | null
+          parent_nps_score?: number | null
           questions_asked?: Json | null
           scheduled_at: string
           status?: Database["public"]["Enums"]["meeting_status"]
@@ -558,6 +562,8 @@ export type Database = {
           notes?: string | null
           nps_reason?: string | null
           nps_score?: number | null
+          parent_nps_reason?: string | null
+          parent_nps_score?: number | null
           questions_asked?: Json | null
           scheduled_at?: string
           status?: Database["public"]["Enums"]["meeting_status"]
@@ -1277,6 +1283,7 @@ export type Database = {
         | "call_2_plus"
         | "zoom"
         | "visit"
+        | "offer"
         | "decision"
       pipeline_status: "active" | "committed" | "passed"
       priority_factor:
@@ -1529,6 +1536,7 @@ export const Constants = {
         "call_2_plus",
         "zoom",
         "visit",
+        "offer",
         "decision",
       ],
       pipeline_status: ["active", "committed", "passed"],

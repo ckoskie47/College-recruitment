@@ -38,6 +38,7 @@ export const PIPELINE_STAGES: { value: PipelineStage; label: string }[] = [
   { value: 'call_2_plus',     label: 'Call 2+' },
   { value: 'zoom',            label: 'Zoom' },
   { value: 'visit',           label: 'Visit' },
+  { value: 'offer',           label: 'Offer' },
   { value: 'decision',        label: 'Decision' },
 ]
 
@@ -58,7 +59,7 @@ export const ENERGY_LEVELS: { value: EnergyLevel; label: string }[] = [
   { value: 'passed',          label: 'Passed' },
 ]
 
-export const STAGE_ORDER: PipelineStage[] = ['initial_contact', 'call_1', 'call_2_plus', 'zoom', 'visit', 'decision']
+export const STAGE_ORDER: PipelineStage[] = ['initial_contact', 'call_1', 'call_2_plus', 'zoom', 'visit', 'offer', 'decision']
 
 export const STAGE_FOR_COMM: Partial<Record<CommType, PipelineStage>> = {
   text: 'initial_contact', call_1: 'call_1', call_2_plus: 'call_2_plus', zoom: 'zoom', visit: 'visit',

@@ -190,6 +190,8 @@ export async function logInteraction(
     participants: string[]
     npsScore: string
     npsReason: string
+    parentNpsScore: string
+    parentNpsReason: string
   },
 ): Promise<{ success: boolean; error?: string }> {
   const ctx = await getCtx()
@@ -215,6 +217,8 @@ export async function logInteraction(
     who_initiated: fields.whoInitiated.trim() || null,
     nps_score: fields.npsScore ? parseInt(fields.npsScore, 10) : null,
     nps_reason: fields.npsReason.trim() || null,
+    parent_nps_score: fields.parentNpsScore ? parseInt(fields.parentNpsScore, 10) : null,
+    parent_nps_reason: fields.parentNpsReason.trim() || null,
     created_by: ctx.user.id,
   })
 
@@ -450,6 +454,24 @@ export async function updateCommunicationNps(
   const { error } = await ctx.svc.from('meetings').update({
     nps_score: npsScore ? parseInt(npsScore, 10) : null,
     nps_reason: npsReason.trim() || null,
+  }).eq('id', meetingId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/e/${engagementId}/schools`)
+  return { success: true }
+}
+
+export async function updateCommunicationParentNps(
+  engagementId: string,
+  meetingId: string,
+  parentNpsScore: string,
+  parentNpsReason: string,
+): Promise<{ success: boolean; error?: string }> {
+  const ctx = await getCtx()
+  if (!ctx) return { success: false, error: 'Unauthorized' }
+
+  const { error } = await ctx.svc.from('meetings').update({
+    parent_nps_score: parentNpsScore ? parseInt(parentNpsScore, 10) : null,
+    parent_nps_reason: parentNpsReason.trim() || null,
   }).eq('id', meetingId)
   if (error) return { success: false, error: error.message }
   revalidatePath(`/e/${engagementId}/schools`)

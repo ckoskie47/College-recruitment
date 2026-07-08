@@ -36,7 +36,7 @@ export default async function SchoolsPage({
       .eq('engagement_id', engagementId)
       .order('created_at', { ascending: true }),
     svc.from('meetings')
-      .select('id, vendor_id, title, scheduled_at, duration_minutes, comm_type, topics, key_points, questions_asked, athlete_takeaway, energy_level, who_initiated, notes, attendees, nps_score, nps_reason')
+      .select('id, vendor_id, title, scheduled_at, duration_minutes, comm_type, topics, key_points, questions_asked, athlete_takeaway, energy_level, who_initiated, notes, attendees, nps_score, nps_reason, parent_nps_score, parent_nps_reason')
       .eq('engagement_id', engagementId)
       .order('scheduled_at', { ascending: false }),
     svc.from('red_flags')
@@ -118,6 +118,8 @@ export default async function SchoolsPage({
       transcript: transcriptsByMeeting[m.id] ?? null,
       nps_score: m.nps_score,
       nps_reason: m.nps_reason,
+      parent_nps_score: m.parent_nps_score,
+      parent_nps_reason: m.parent_nps_reason,
     })
   }
 
