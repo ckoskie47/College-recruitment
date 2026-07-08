@@ -20,22 +20,26 @@ export type GeneratedQuestion = {
   question: string
 }
 
-const STAGE_CONFIG: Record<QuestionBankStage, { count: number; description: string }> = {
+const STAGE_CONFIG: Record<QuestionBankStage, { count: number; description: string; scope: string }> = {
   intro_call: {
-    count: 6,
-    description: 'short, friendly questions for the very first call (show interest, get basics)',
+    count: 4,
+    description: 'brief, friendly questions for the very first call',
+    scope: 'Surface-level rapport and interest only: initial recruiting interest, staff/roster basics, timeline. Do NOT ask pointed priority-driven questions here — those belong to the deep-dive stage.',
   },
   deep_dive: {
-    count: 12,
-    description: 'pointed questions for follow-up calls with the head coach / position coach — split across playing time, coaching/development, and program/culture',
+    count: 10,
+    description: 'pointed questions for follow-up calls with the head coach / position coach',
+    scope: 'This is the ONLY stage that owns substantive, priority-factor-driven questions (playing time, development plan, coaching philosophy, program direction, culture) and the exit-interview-driven questions. Cover each priority factor and exit-interview concern once, here, in depth.',
   },
   zoom: {
-    count: 8,
-    description: 'questions for a video call focused on facilities, culture/integration, and logistics',
+    count: 6,
+    description: 'questions for a video call',
+    scope: 'Practical/operational topics only, not already owned by deep-dive: facilities, academics, NIL structure, roster/depth chart specifics, logistics. Do not re-ask deep-dive\'s playing-time or coaching-philosophy questions.',
   },
   visit: {
-    count: 10,
-    description: 'questions for an in-person campus visit — team/culture, gut-check, and program/town questions',
+    count: 6,
+    description: 'questions for an in-person campus visit',
+    scope: 'In-person gut-check and verification only: team chemistry observed in person, campus/town fit, and confirming what was promised on earlier calls (e.g. "You mentioned X earlier — can I see that in person?"). Do not repeat deep-dive or zoom questions verbatim or in substance.',
   },
 }
 
@@ -72,15 +76,19 @@ async function generateStageQuestions(
   summary: string,
   athleteName: string,
 ): Promise<GeneratedQuestion[]> {
-  const { count, description } = STAGE_CONFIG[stage]
+  const { count, description, scope } = STAGE_CONFIG[stage]
 
-  const systemPrompt = `You are an experienced college baseball recruiting advisor building a reusable question bank for a Division I transfer portal athlete to use across every school he talks to.
+  const systemPrompt = `You are an experienced college baseball recruiting advisor building a reusable question bank for a Division I transfer portal athlete to use across every school he talks to. The full question bank is built from four separate stages (intro call, deep dive, zoom, visit); you are only generating THIS stage's questions.
 
-Generate exactly ${count} ${description}
+Generate exactly ${count} ${description}. Scope for this stage: ${scope}
 
 Two sources drive these questions:
-1. The athlete's stated PRIORITIES — higher-ranked factors get more and harder questions. Tag each such question with the priority factor that drove it.
-2. The athlete's EXIT INTERVIEW — questions that directly probe whether the new school will repeat the specific problems that made him leave his last program. These should reference the athlete's actual stated reasons, not generic phrasing.
+1. The athlete's stated PRIORITIES — higher-ranked factors get more and harder questions (in the stage that owns them, per the scope above). Tag each such question with the priority factor that drove it.
+2. The athlete's EXIT INTERVIEW — questions that directly probe whether the new school will repeat the specific problems that made him leave his last program. Reference only what's actually stated below — do not add specifics that aren't there.
+
+STRICT ACCURACY RULE: Only use facts explicitly present in the ATHLETE summary given to you. Never invent biographical details, positions, stats, injuries, past incidents, or dialogue/quotes attributed to the athlete or a coach. If a question needs framing around something sensitive (e.g. playing time concerns), keep the framing generic and tied only to what's explicitly stated (e.g. "given that playing time was a factor in my decision to leave") — never fabricate a specific story, score, or characterization to make it sound more real.
+
+NO DUPLICATES: Stay strictly within this stage's scope. Do not generate a question that restates, in different words, something better suited to another stage — trust that the other stages are covering their own lanes.
 
 Questions must be specific and require verifiable answers (names, numbers, timelines) — not questions a coach can dodge with a sales pitch.`
 
