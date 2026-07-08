@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import {
   addSchool, updateSchoolStage, updateSchoolStatus, updateSchoolOffer, updateNextStep,
   logInteraction, addRedFlag, updateRedFlagStatus, saveSchoolResearch, markQuestionAsked,
@@ -9,7 +9,7 @@ import {
 } from './actions'
 import {
   PIPELINE_STAGES, COMM_TYPES, ENERGY_LEVELS, RED_FLAG_SEVERITIES, QUESTION_STAGE_LABELS,
-  TRANSCRIPT_SOURCE_LABELS,
+  TRANSCRIPT_SOURCE_LABELS, STAGE_FOR_COMM,
   type PipelineStage, type PipelineStatus, type CommType, type EnergyLevel,
   type RedFlagSeverity, type RedFlagStatus, type RedFlagSource, type QuestionStage,
   type QuestionSource, type PriorityFactor, type QuestionAskedInput, type TranscriptSource,
@@ -140,13 +140,18 @@ function StatusPill({ status }: { status: PipelineStatus }) {
 // ---------------------------------------------------------------------------
 
 // Stages aren't a required sequence — a school can go straight from a text
-// to a decision, or skip zoom/visit/offer entirely. This only marks the
-// CURRENT stage; it never implies earlier stages were actually completed.
-function StageProgress({ stage, status, onChange }: { stage: PipelineStage; status: PipelineStatus; onChange: (s: PipelineStage) => void }) {
+// to a decision, skipping zoom/visit/offer entirely. A stage only shows a
+// ✓ if it was actually documented (a matching communication was logged, or
+// offer details were entered) — several can be checked at once, independent
+// of whichever single stage is currently "active" (● , navy).
+function StageProgress({ stage, status, onChange, doneStages }: {
+  stage: PipelineStage; status: PipelineStatus; onChange: (s: PipelineStage) => void; doneStages: Set<PipelineStage>
+}) {
   return (
     <div className="flex items-center gap-1 flex-wrap">
       {PIPELINE_STAGES.map((s) => {
         const current = s.value === stage
+        const done = !current && doneStages.has(s.value)
         return (
           <button
             key={s.value}
@@ -156,13 +161,13 @@ function StageProgress({ stage, status, onChange }: { stage: PipelineStage; stat
             title={`Mark as ${s.label}`}
             style={{
               background: current ? 'var(--navy)' : 'var(--white)',
-              color: current ? 'var(--cream)' : 'var(--slate-soft)',
-              border: `1px solid ${current ? 'var(--navy)' : 'var(--line)'}`,
+              color: current ? 'var(--cream)' : done ? 'var(--green)' : 'var(--slate-soft)',
+              border: `1px solid ${current ? 'var(--navy)' : done ? 'var(--green)' : 'var(--line)'}`,
               fontFamily: 'var(--sans)', cursor: status === 'active' ? 'pointer' : 'default',
             }}
             className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide rounded-sm"
           >
-            {current ? '● ' : ''}{s.label}
+            {current ? '● ' : done ? '✓ ' : ''}{s.label}
           </button>
         )
       })}
@@ -1252,6 +1257,17 @@ function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithD
 
   const lastComm = school.communications[0]
 
+  const doneStages = useMemo(() => {
+    const set = new Set<PipelineStage>()
+    for (const c of school.communications) {
+      const s = c.comm_type && STAGE_FOR_COMM[c.comm_type]
+      if (s) set.add(s)
+    }
+    if (school.nil_offer_amount != null || school.pt_estimate || school.decision_deadline || school.nil_offer_notes) set.add('offer')
+    if (school.pipeline_status === 'committed') set.add('decision')
+    return set
+  }, [school.communications, school.nil_offer_amount, school.pt_estimate, school.decision_deadline, school.nil_offer_notes, school.pipeline_status])
+
   function handleStageChange(s: PipelineStage) {
     if (s === 'offer') setExpanded(true)
     startStage(async () => { await updateSchoolStage(school.id, engagementId, s) })
@@ -1307,7 +1323,7 @@ function SchoolCard({ school, engagementId, athleteName }: { school: SchoolWithD
 
         {school.pipeline_status !== 'passed' && (
           <div className="mt-3 mb-3">
-            <StageProgress stage={school.pipeline_stage} status={school.pipeline_status} onChange={handleStageChange} />
+            <StageProgress stage={school.pipeline_stage} status={school.pipeline_status} onChange={handleStageChange} doneStages={doneStages} />
           </div>
         )}
         {school.pipeline_status === 'passed' && school.passed_reason && (
